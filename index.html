@@ -300,7 +300,6 @@
     <!-- 스크립트 시작 -->
     <script>
         // ========================================================
-        // 단 한 번만 선언되도록 수정한 API_BASE_URL (수정 불가)
         const API_BASE_URL = 'https://yellow-meadow-ae80.thin770.workers.dev'; 
         // ========================================================
         
@@ -338,8 +337,9 @@
                 });
             }
 
-            await fetchWallet();
-            await fetchRooms();
+            // 병렬로 데이터 호출 (의존성 없음)
+            fetchWallet();
+            fetchRooms();
         });
 
         /* --- 뷰 0: 홈 / 페르소나 로직 --- */
@@ -353,16 +353,18 @@
             }
 
             const personaData = { name, job, personality: [trait] };
-            
             showToast('AI 아바타 생성 중...', 'success');
             
+            // fetch 오류가 발생해도 진행되도록 독립된 try-catch 블록 설정
             try {
                 await fetch(`${API_BASE_URL}/set-persona`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
                     body: JSON.stringify(personaData)
                 });
-            } catch(e) { console.log('API 연동 실패(테스트 모드 진행)', e); }
+            } catch(e) { 
+                console.warn('API 연동 실패 (더미 모드로 진행):', e); 
+            }
 
             userPersona = personaData;
             localStorage.setItem('userPersona', JSON.stringify(personaData));
@@ -438,7 +440,7 @@
             }, 300);
         }
 
-        /* --- 지갑 및 방 목록 조회 --- */
+        /* --- 지갑 조회 --- */
         async function fetchWallet() {
             try {
                 const res = await fetch(`${API_BASE_URL}/wallet`, { headers: { 'X-Device-ID': DEVICE_ID } });
@@ -446,8 +448,12 @@
                     const data = await res.json();
                     myCoins = data.coin_balance > 0 ? data.coin_balance : 1250;
                 }
-            } catch(e) { console.error("지갑 조회 실패", e); }
-            finally { updateWalletUI(); }
+            } catch(e) { 
+                console.warn("지갑 조회 API 실패 (기본값 사용):", e); 
+                // 통신 실패 시에도 기본값(1250)을 유지합니다.
+            } finally { 
+                updateWalletUI(); 
+            }
         }
 
         function updateWalletUI() {
@@ -456,32 +462,36 @@
             });
         }
 
+        /* --- 방 목록 조회 --- */
         async function fetchRooms() {
             const listContainer = document.getElementById('room-list');
+            let rooms = [];
+            
             try {
-                let rooms = [];
                 const res = await fetch(`${API_BASE_URL}/rooms`);
                 if(res.ok) {
                     const data = await res.json();
-                    rooms = data.rooms;
+                    if(data.rooms) rooms = data.rooms;
                 }
-                
-                if(rooms.length === 0) {
-                    await new Promise(r => setTimeout(r, 600)); 
-                    rooms = [
-                        { id: 'room_joseon', title: '조선 건국 방향성 토론', theme: '역사/정치', viewerCount: 142, status: '불꽃 튀는 중', statusColor: 'text-rose-400', participants: [{ name: '성계', color: 'bg-blue-500' }, { name: '도전', color: 'bg-emerald-500' }, { name: '방원', color: 'bg-red-500' }] },
-                        { id: 'room_future', title: 'AI는 인류를 지배할 것인가', theme: '미래기술/철학', viewerCount: 89, status: '논리적 전개 중', statusColor: 'text-primary', participants: [{ name: '해커', color: 'bg-purple-500' }, { name: '윤리', color: 'bg-amber-500' }, { name: '로봇', color: 'bg-slate-500' }] }
-                    ];
-                }
-
-                document.getElementById('loading-indicator').style.display = 'none';
-                listContainer.innerHTML = '';
-                rooms.forEach((room, i) => listContainer.appendChild(createRoomCard(room, i)));
-                lucide.createIcons();
             } catch(e) { 
-                console.error("방 목록 조회 실패", e); 
-                document.getElementById('loading-indicator').style.display = 'none';
+                console.warn("방 목록 조회 API 호출 실패 (더미 데이터 렌더링):", e); 
             }
+            
+            // 데이터가 비어있거나 fetch 에러가 났을 때 강제로 더미 데이터를 보여주도록 안전장치 추가
+            if(rooms.length === 0) {
+                await new Promise(r => setTimeout(r, 600)); 
+                rooms = [
+                    { id: 'room_joseon', title: '조선 건국 방향성 토론', theme: '역사/정치', viewerCount: 142, status: '불꽃 튀는 중', statusColor: 'text-rose-400', participants: [{ name: '성계', color: 'bg-blue-500' }, { name: '도전', color: 'bg-emerald-500' }, { name: '방원', color: 'bg-red-500' }] },
+                    { id: 'room_future', title: 'AI는 인류를 지배할 것인가', theme: '미래기술/철학', viewerCount: 89, status: '논리적 전개 중', statusColor: 'text-primary', participants: [{ name: '해커', color: 'bg-purple-500' }, { name: '윤리', color: 'bg-amber-500' }, { name: '로봇', color: 'bg-slate-500' }] }
+                ];
+            }
+
+            const loadingIndicator = document.getElementById('loading-indicator');
+            if(loadingIndicator) loadingIndicator.style.display = 'none';
+            
+            listContainer.innerHTML = '';
+            rooms.forEach((room, i) => listContainer.appendChild(createRoomCard(room, i)));
+            lucide.createIcons();
         }
 
         function createRoomCard(room, index) {
@@ -533,7 +543,7 @@
                     headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
                     body: JSON.stringify({ roomId: roomInfo.id })
                 });
-            } catch(e) { console.log('API 연동 테스트 모드 작동중...'); }
+            } catch(e) { console.warn('API 연동 실패 (화면 전환은 정상 진행됩니다):', e); }
 
             const viewBoard = document.getElementById('view-board');
             const viewChat = document.getElementById('view-chat');
@@ -708,7 +718,7 @@
                 const aiData = await aiRes.json();
                 if(aiData.response) responseText = aiData.response;
             } catch(e) { 
-                console.error('AI 호출 실패', e);
+                console.warn('AI 호출 실패 (기본 응답으로 대체):', e);
                 // 백엔드 실패 시 더미 데이터로 응답 대체
                 await new Promise(r => setTimeout(r, 2000));
                 if (type === 'question') responseText = "네, 알겠습니다. 관전자님의 의견을 수용하여 반영하겠습니다.";
