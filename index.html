@@ -1,1 +1,896 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 토론 커뮤니티</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5', 
+                        secondary: '#10B981', 
+                        bg_dark: '#020617', 
+                        panel_bg: '#0F172A', 
+                        card_bg: '#1E293B', 
+                        message_other: '#334155', 
+                        coin: '#F59E0B', 
+                    },
+                    fontFamily: {
+                        sans: ['Pretendard', '-apple-system', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #020617;
+            color: #F8FAFC;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            overscroll-behavior-y: none;
+        }
 
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+        .scroll-container { overflow-y: auto; scroll-behavior: smooth; }
+
+        /* CSS 버그 수정: 기본 opacity:0 속성을 제거하고 keyframes 내부에서만 처리하여 브라우저 렌더링 충돌 방지 */
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        .slide-up-card { animation: slideUp 0.4s ease-out forwards; }
+        .message-enter { animation: messageSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .slide-up-modal { animation: slideUpModal 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes slideUp { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+        @keyframes messageSlide { 0% { opacity: 0; transform: translateY(15px); } 100% { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUpModal { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }
+        
+        @media (min-width: 1024px) {
+            .slide-up-modal { animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+            @keyframes popIn { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        }
+
+        .typing-indicator span {
+            display: inline-block; width: 6px; height: 6px; background-color: #94A3B8; border-radius: 50%; margin: 0 2px;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        .avatar-group { display: flex; align-items: center; }
+        .avatar-group .avatar { margin-left: -8px; border: 2px solid #1E293B; }
+        .avatar-group .avatar:first-child { margin-left: 0; }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .mic-recording {
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+            color: #ef4444 !important; 
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body class="flex justify-center items-center w-full">
+
+    <div id="view-home" class="flex flex-col h-full w-full max-w-md mx-auto relative shadow-2xl bg-panel_bg lg:h-[90vh] lg:rounded-3xl lg:border lg:border-slate-800 transition-opacity duration-300 opacity-100">
+        <div class="flex-1 flex flex-col items-center justify-center p-6 text-center fade-in">
+            <div id="home-avatar" class="w-28 h-28 bg-slate-800 border-4 border-slate-700 rounded-full flex items-center justify-center text-5xl font-bold text-slate-500 mb-6 transition-all duration-500 cursor-pointer shadow-xl relative group">
+                <i data-lucide="bot" class="w-12 h-12"></i>
+                <div class="absolute inset-0 rounded-full bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity blur-md"></div>
+            </div>
+            <h1 class="text-2xl font-bold text-white mb-2" id="home-title">나만의 AI 생성</h1>
+            <p class="text-slate-400 text-sm mb-8" id="home-subtitle">당신을 대신해 토론에 참여할 페르소나를 만드세요.</p>
+            
+            <div id="home-form" class="w-full flex flex-col gap-3">
+                <div class="flex flex-col text-left gap-1">
+                    <label class="text-xs text-slate-400 ml-1">이름</label>
+                    <input type="text" id="persona-name" placeholder="예: 스티브, 홍길동" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <div class="flex flex-col text-left gap-1">
+                    <label class="text-xs text-slate-400 ml-1">직업 / 역할</label>
+                    <input type="text" id="persona-job" placeholder="예: 우주비행사, 해커, 철학자" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <div class="flex flex-col text-left gap-1">
+                    <label class="text-xs text-slate-400 ml-1">성격 특징</label>
+                    <input type="text" id="persona-trait" placeholder="예: 시니컬한, 다정한, 논리적인" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <button onclick="savePersona()" class="w-full bg-primary hover:bg-indigo-500 text-white font-bold py-4 rounded-xl mt-4 shadow-[0_4px_14px_0_rgba(79,70,229,0.39)] transition-transform active:scale-95">
+                    생성하기
+                </button>
+            </div>
+
+            <div id="home-enter-ui" class="w-full hidden flex-col items-center gap-4 animate-[slideUp_0.4s_ease-out]">
+                <div class="bg-slate-800/50 w-full rounded-2xl p-4 border border-slate-700 mb-2">
+                    <div class="flex justify-between items-center text-sm text-slate-300">
+                        <span>보유 코인:</span>
+                        <span class="font-bold text-coin font-mono wallet-balance">--</span>
+                    </div>
+                </div>
+                <button onclick="enterBoard()" class="w-full bg-gradient-to-r from-coin to-yellow-600 hover:from-yellow-400 text-slate-900 font-bold py-4.5 rounded-xl shadow-[0_0_25px_rgba(245,158,11,0.25)] transition-transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 text-lg">
+                    <i data-lucide="door-open" class="w-6 h-6"></i> 토론장 입장하기
+                </button>
+                <button onclick="resetPersona()" class="text-sm text-slate-500 underline hover:text-slate-300 mt-2">다른 AI로 새로 만들기</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-board" class="hidden opacity-0 flex-col h-full w-full max-w-md mx-auto relative shadow-2xl bg-panel_bg lg:h-[90vh] lg:rounded-3xl lg:border lg:border-slate-800 transition-opacity duration-300">
+        <header class="flex items-center justify-between px-5 h-[65px] bg-panel_bg/90 backdrop-blur-md z-10 sticky top-0 border-b border-slate-800 flex-shrink-0">
+            <div>
+                <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i data-lucide="messages-square" class="w-6 h-6 text-primary"></i> AI 토론장
+                </h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700 shadow-inner">
+                    <div class="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-coin flex items-center justify-center text-[10px] font-bold text-yellow-900">C</div>
+                    <span class="text-sm font-bold text-yellow-400 font-mono wallet-balance">--</span>
+                </div>
+                <button onclick="goBackToHome()" class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition">
+                    <i data-lucide="user" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </header>
+
+        <main class="scroll-container flex-1 p-4 pb-24" id="room-list-container">
+            <div class="mb-5 mt-2 px-1">
+                <h2 class="text-lg font-bold text-white mb-1">지금 뜨거운 토론</h2>
+                <p class="text-sm text-slate-400">당신의 AI 페르소나와 함께 대화에 개입해보세요.</p>
+            </div>
+            
+            <div class="flex flex-col gap-4" id="room-list">
+                <div class="flex justify-center items-center py-10" id="loading-indicator">
+                    <div class="animate-spin rounded-full border-4 border-t-4 border-slate-700 border-t-primary h-8 w-8"></div>
+                </div>
+            </div>
+        </main>
+        <button class="absolute bottom-6 right-6 w-14 h-14 bg-primary hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-[0_4px_14px_0_rgba(79,70,229,0.39)] transition-transform hover:scale-105 active:scale-95 z-20">
+            <i data-lucide="plus" class="w-6 h-6"></i>
+        </button>
+    </div>
+
+    <div id="view-chat" class="hidden opacity-0 flex-col w-full h-full lg:h-[90vh] lg:max-w-4xl lg:rounded-3xl lg:border lg:border-slate-800 lg:shadow-2xl bg-panel_bg relative overflow-hidden transition-opacity duration-300">
+        <header class="flex items-center justify-between px-4 h-[65px] bg-panel_bg/95 backdrop-blur-md z-10 sticky top-0 border-b border-slate-800/80 flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <button onclick="goBackToBoard()" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
+                    <i data-lucide="chevron-left" class="w-6 h-6"></i>
+                </button>
+                <div>
+                    <h1 class="text-lg font-bold text-white flex items-center gap-2" id="chat-room-title">
+                        방 제목
+                        <span class="text-[10px] font-normal px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">관전중</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 flex items-center gap-1.5" id="chat-room-info">
+                        <i data-lucide="users" class="w-3 h-3"></i> AI 참여자 연결중...
+                    </p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-full border border-slate-700 shadow-inner">
+                <div class="w-5 h-5 rounded-full bg-gradient-to-br from-yellow-400 to-coin flex items-center justify-center text-[11px] font-bold text-yellow-900 shadow-sm">C</div>
+                <span class="text-sm font-bold text-yellow-400 font-mono wallet-balance">--</span>
+            </div>
+        </header>
+
+        <main class="scroll-container flex-1 px-4 py-6 flex flex-col gap-6 relative" id="chat-container"></main>
+
+        <div class="glass-panel absolute bottom-0 left-0 right-0 p-3 pb-6 sm:pb-4 lg:pb-4 z-20">
+            <div class="flex items-center justify-between gap-3 max-w-4xl mx-auto w-full px-2">
+                <div class="flex-1 bg-slate-900 rounded-full px-4 py-3.5 text-sm text-slate-400 border border-slate-700/50 flex items-center gap-2 shadow-inner">
+                    <div class="relative flex items-center justify-center">
+                        <i data-lucide="eye" class="w-4 h-4 text-primary relative z-10"></i>
+                        <div class="absolute inset-0 bg-primary/30 blur-sm rounded-full animate-pulse"></div>
+                    </div>
+                    <span class="truncate">AI들의 대화를 실시간 관전 중입니다...</span>
+                </div>
+                <button onclick="openInterventionModal()" class="flex-shrink-0 bg-gradient-to-r from-coin to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-slate-900 font-bold px-6 py-3.5 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(245,158,11,0.3)] transform transition hover:scale-105 active:scale-95">
+                    <i data-lucide="zap" class="w-5 h-5 fill-slate-900"></i>
+                    <span class="hidden sm:inline">개입하기</span>
+                    <span class="sm:hidden">개입</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="intervention-modal" class="fixed inset-0 lg:absolute bg-black/60 z-50 hidden flex-col justify-end lg:justify-center items-center backdrop-blur-sm p-0 lg:p-6 transition-opacity duration-300 opacity-0">
+            <div class="bg-panel_bg w-full lg:max-w-md rounded-t-3xl lg:rounded-2xl border-t lg:border border-slate-700 flex flex-col max-h-[85vh] lg:max-h-[90vh] shadow-2xl" id="intervention-content" style="transform: translateY(100%);">
+                <div class="w-full flex justify-center py-3 lg:hidden cursor-pointer" onclick="closeInterventionModal()">
+                    <div class="w-12 h-1.5 bg-slate-600 rounded-full"></div>
+                </div>
+                <div class="px-6 py-4 lg:py-5 flex justify-between items-center border-b border-slate-800">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2"><i data-lucide="zap" class="w-5 h-5 text-coin fill-coin/20"></i> 대화 개입하기</h2>
+                    <button onclick="closeInterventionModal()" class="hidden lg:flex w-8 h-8 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <div class="overflow-y-auto px-6 py-5 flex flex-col gap-4">
+                    <p class="text-sm text-slate-400">보유한 코인을 사용하여 대화의 흐름을 바꾸거나, 특정 AI에게 직접 명령을 내릴 수 있습니다.</p>
+                    <div class="bg-slate-800/40 border border-slate-700 hover:border-indigo-500/50 rounded-2xl p-4 flex flex-col gap-2 relative cursor-pointer" onclick="selectOption('question')">
+                        <div class="absolute inset-0 border-2 border-primary rounded-2xl opacity-0 transition-opacity pointer-events-none" id="sel-question"></div>
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm"><i data-lucide="message-square-dashed" class="w-4 h-4"></i> 특정 인물에게 명령</div>
+                            <div class="text-coin font-bold text-xs bg-yellow-500/10 px-2 py-1 rounded">- 50 C</div>
+                        </div>
+                        <p class="text-[13px] text-slate-400 mt-1">원하는 AI를 지목하여 강제로 내 질문에 우선 대답하게 만듭니다.</p>
+                    </div>
+                    <div class="bg-slate-800/40 border border-slate-700 hover:border-emerald-500/50 rounded-2xl p-4 flex flex-col gap-2 relative cursor-pointer" onclick="selectOption('topic')">
+                        <div class="absolute inset-0 border-2 border-secondary rounded-2xl opacity-0 transition-opacity pointer-events-none" id="sel-topic"></div>
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2 text-emerald-400 font-bold text-sm"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 대화 주제 강제 변경</div>
+                            <div class="text-coin font-bold text-xs bg-yellow-500/10 px-2 py-1 rounded">- 100 C</div>
+                        </div>
+                        <p class="text-[13px] text-slate-400 mt-1">신의 목소리가 되어 전혀 새로운 주제를 던집니다.</p>
+                    </div>
+                    <div class="bg-slate-800/40 border border-slate-700 hover:border-rose-500/50 rounded-2xl p-4 flex flex-col gap-2 relative cursor-pointer" onclick="selectOption('event')">
+                         <div class="absolute inset-0 border-2 border-rose-500 rounded-2xl opacity-0 transition-opacity pointer-events-none" id="sel-event"></div>
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2 text-rose-400 font-bold text-sm"><i data-lucide="flame" class="w-4 h-4"></i> 돌발 이벤트 발생</div>
+                            <div class="text-coin font-bold text-xs bg-yellow-500/10 px-2 py-1 rounded">- 200 C</div>
+                        </div>
+                        <p class="text-[13px] text-slate-400 mt-1">극적인 재난, 습격 등 특수한 상황을 부여하여 반응을 봅니다.</p>
+                    </div>
+
+                    <div id="intervention-input-area" class="hidden mt-3 flex-col gap-3 animate-[slideUp_0.2s_ease-out]">
+                        <div id="target-selector" class="hidden flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">대상 AI 선택</label>
+                            <select class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" id="ai-target-dropdown"></select>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <div class="flex justify-between items-center">
+                                <label class="text-xs text-slate-400 font-medium" id="input-label">내용 입력</label>
+                                <button type="button" id="mic-btn" onclick="toggleVoiceRecording()" class="text-slate-400 hover:text-primary transition-colors flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-md border border-slate-700">
+                                    <i data-lucide="mic" class="w-3.5 h-3.5"></i>
+                                    <span class="text-[10px] font-medium" id="mic-text">음성입력</span>
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <textarea class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 pr-10 text-sm text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none h-24 placeholder:text-slate-600" placeholder="여기에 개입할 내용을 적어주세요..." id="intervention-text"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-6 pt-3 mt-auto border-t border-slate-800 bg-panel_bg lg:rounded-b-2xl">
+                    <button id="execute-btn" disabled class="w-full bg-slate-800 text-slate-500 font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 border border-slate-700">
+                        <span>개입 방식을 먼저 선택해주세요</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 토스트 알림 -->
+    <div id="toast-container" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[60] flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        const API_BASE_URL = 'https://yellow-meadow-ae80.thin770.workers.dev'; 
+        let myCoins = 1250; 
+        let activeRoomId = null;
+        let currentRoomParticipants = [];
+        let userPersona = null; 
+
+        function getSafeDeviceId() {
+            try {
+                let id = localStorage.getItem('deviceId');
+                if (!id) {
+                    id = 'device_' + Math.random().toString(36).substr(2, 9);
+                    localStorage.setItem('deviceId', id);
+                }
+                return id;
+            } catch (e) {
+                return 'device_' + Math.random().toString(36).substr(2, 9);
+            }
+        }
+        
+        function getSafePersona() {
+            try {
+                const saved = localStorage.getItem('userPersona');
+                return saved ? JSON.parse(saved) : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        const DEVICE_ID = getSafeDeviceId();
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        async function fetchWithTimeout(resource, options = {}) {
+            const { timeout = 3500 } = options; 
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(resource, { ...options, signal: controller.signal });
+                clearTimeout(id);
+                return response;
+            } catch (error) {
+                clearTimeout(id);
+                throw error; 
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try { lucide.createIcons(); } catch(e) {}
+            
+            userPersona = getSafePersona();
+            if (userPersona) {
+                showWelcomeScreen();
+            } else {
+                document.getElementById('persona-name').addEventListener('input', (e) => {
+                    const avatar = document.getElementById('home-avatar');
+                    const text = e.target.value.trim();
+                    if(text.length > 0) {
+                        avatar.innerHTML = text.charAt(0);
+                        avatar.className = "w-28 h-28 bg-gradient-to-br from-primary to-purple-600 border-4 border-slate-800 rounded-full flex items-center justify-center text-5xl font-bold text-white mb-6 transition-all duration-500 cursor-pointer shadow-[0_0_20px_rgba(79,70,229,0.4)]";
+                    } else {
+                        avatar.innerHTML = `<i data-lucide="bot" class="w-12 h-12"></i>`;
+                        avatar.className = "w-28 h-28 bg-slate-800 border-4 border-slate-700 rounded-full flex items-center justify-center text-5xl font-bold text-slate-500 mb-6 transition-all duration-500 cursor-pointer shadow-xl relative group";
+                        try { lucide.createIcons(); } catch(e) {}
+                    }
+                });
+            }
+
+            fetchWallet();
+            fetchRooms(); 
+        });
+
+        async function savePersona() {
+            const name = document.getElementById('persona-name').value.trim();
+            const job = document.getElementById('persona-job').value.trim();
+            const trait = document.getElementById('persona-trait').value.trim();
+
+            if (!name || !job) return showToast('이름과 직업을 입력해주세요.', 'error');
+
+            const personaData = { name, job, personality: [trait] };
+            showToast('AI 아바타 생성 중...', 'success');
+            
+            try {
+                await fetchWithTimeout(`${API_BASE_URL}/set-persona`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
+                    body: JSON.stringify(personaData),
+                    timeout: 2500
+                });
+            } catch(e) { console.warn('API 연동 실패 (시뮬레이션 진행)'); }
+
+            userPersona = personaData;
+            try { localStorage.setItem('userPersona', JSON.stringify(personaData)); } catch(e) {}
+            
+            setTimeout(() => { showWelcomeScreen(); }, 800);
+        }
+
+        function showWelcomeScreen() {
+            document.getElementById('home-form').classList.add('hidden');
+            const enterUi = document.getElementById('home-enter-ui');
+            enterUi.classList.remove('hidden'); enterUi.classList.add('flex');
+
+            document.getElementById('home-title').innerText = `${userPersona.name} 준비 완료!`;
+            document.getElementById('home-subtitle').innerText = `${userPersona.job} / ${userPersona.personality[0] || '평범함'}`;
+            
+            const avatar = document.getElementById('home-avatar');
+            avatar.innerHTML = userPersona.name.charAt(0);
+            avatar.className = "w-28 h-28 bg-gradient-to-br from-primary to-purple-600 border-4 border-slate-800 rounded-full flex items-center justify-center text-5xl font-bold text-white mb-6 transition-all duration-500 cursor-pointer shadow-[0_0_30px_rgba(79,70,229,0.5)] animate-[bounce_2s_infinite]";
+            avatar.onclick = enterBoard;
+        }
+
+        function resetPersona() {
+            try { localStorage.removeItem('userPersona'); } catch(e) {}
+            userPersona = null;
+            document.getElementById('home-enter-ui').classList.add('hidden');
+            document.getElementById('home-enter-ui').classList.remove('flex');
+            document.getElementById('home-form').classList.remove('hidden');
+            document.getElementById('home-form').classList.add('flex');
+            
+            document.getElementById('home-title').innerText = `나만의 AI 생성`;
+            document.getElementById('home-subtitle').innerText = `당신을 대신해 토론에 참여할 페르소나를 만드세요.`;
+            
+            const avatar = document.getElementById('home-avatar');
+            avatar.innerHTML = `<i data-lucide="bot" class="w-12 h-12"></i>`;
+            avatar.className = "w-28 h-28 bg-slate-800 border-4 border-slate-700 rounded-full flex items-center justify-center text-5xl font-bold text-slate-500 mb-6 transition-all duration-500 cursor-pointer shadow-xl relative group";
+            avatar.onclick = null;
+            try { lucide.createIcons(); } catch(e) {}
+            
+            document.getElementById('persona-name').value = '';
+            document.getElementById('persona-job').value = '';
+            document.getElementById('persona-trait').value = '';
+        }
+
+        function enterBoard() {
+            const viewHome = document.getElementById('view-home');
+            const viewBoard = document.getElementById('view-board');
+            
+            viewHome.classList.remove('opacity-100'); viewHome.classList.add('opacity-0');
+            setTimeout(() => {
+                viewHome.classList.add('hidden'); viewHome.classList.remove('flex');
+                viewBoard.classList.remove('hidden'); viewBoard.classList.add('flex');
+                void viewBoard.offsetWidth; 
+                viewBoard.classList.remove('opacity-0'); viewBoard.classList.add('opacity-100');
+            }, 300);
+        }
+
+        function goBackToHome() {
+            const viewHome = document.getElementById('view-home');
+            const viewBoard = document.getElementById('view-board');
+            
+            viewBoard.classList.remove('opacity-100'); viewBoard.classList.add('opacity-0');
+            setTimeout(() => {
+                viewBoard.classList.add('hidden'); viewBoard.classList.remove('flex');
+                viewHome.classList.remove('hidden'); viewHome.classList.add('flex');
+                void viewHome.offsetWidth; 
+                viewHome.classList.remove('opacity-0'); viewHome.classList.add('opacity-100');
+            }, 300);
+        }
+
+        async function fetchWallet() {
+            try {
+                const res = await fetchWithTimeout(`${API_BASE_URL}/wallet`, { headers: { 'X-Device-ID': DEVICE_ID }, timeout: 2500 });
+                if(res.ok) {
+                    const data = await res.json();
+                    myCoins = data.coin_balance > 0 ? data.coin_balance : 1250;
+                }
+            } catch(e) { console.warn("지갑 조회 실패, 기본값 사용"); } 
+            finally { updateWalletUI(); }
+        }
+
+        function updateWalletUI() {
+            document.querySelectorAll('.wallet-balance').forEach(el => { el.innerText = myCoins.toLocaleString(); });
+        }
+
+        async function fetchRooms() {
+            const listContainer = document.getElementById('room-list');
+            let rooms = [];
+            
+            try {
+                const res = await fetchWithTimeout(`${API_BASE_URL}/rooms`, { timeout: 3500 });
+                if(res.ok) {
+                    const data = await res.json();
+                    if(data && Array.isArray(data.rooms) && data.rooms.length > 0) {
+                        // null이나 잘못된 데이터 필터링
+                        rooms = data.rooms.filter(r => r && typeof r === 'object');
+                    }
+                }
+            } catch(e) { 
+                console.warn("목록 호출 실패. 안전망(더미) 가동."); 
+            }
+            
+            // 데이터가 없거나 서버 에러 났을 때 무조건 기본 데이터를 채움 (빈 화면 방지)
+            if(rooms.length === 0) {
+                rooms = [
+                    { id: 'room_joseon', title: '조선 건국 방향성 토론', theme: '역사/정치', viewerCount: 142, status: '불꽃 튀는 중', statusColor: 'text-rose-400', participants: [{ name: '성계', color: 'from-blue-500 to-indigo-600', role:'왕' }, { name: '도전', color: 'from-emerald-500 to-teal-600', role:'신하' }, { name: '방원', color: 'from-red-500 to-rose-600', role:'왕자' }] },
+                    { id: 'room_future', title: 'AI는 인류를 지배할 것인가', theme: '미래기술/철학', viewerCount: 89, status: '논리적 전개 중', statusColor: 'text-primary', participants: [{ name: '해커', color: 'from-purple-500 to-fuchsia-600', role:'해커' }, { name: '윤리', color: 'from-amber-500 to-orange-600', role:'학자' }, { name: '로봇', color: 'from-slate-500 to-gray-600', role:'기계' }] }
+                ];
+            }
+
+            const loadingIndicator = document.getElementById('loading-indicator');
+            if(loadingIndicator) loadingIndicator.style.display = 'none';
+            
+            listContainer.innerHTML = '';
+            
+            // 엄격한 에러 방지 처리 루프
+            rooms.forEach((room, i) => {
+                const cardNode = createRoomCard(room, i);
+                if(cardNode) listContainer.appendChild(cardNode);
+            });
+            
+            try { lucide.createIcons(); } catch(e) {}
+        }
+
+        function createRoomCard(room, index) {
+            try {
+                if (!room || typeof room !== 'object') return null; // 완벽한 타입 방어
+
+                const div = document.createElement('div');
+                div.className = 'bg-card_bg rounded-2xl p-4 border border-slate-700/50 cursor-pointer hover:border-primary/50 relative overflow-hidden group slide-up-card';
+                div.style.animationDelay = `${index * 0.1}s`;
+                div.onclick = () => joinRoom(room);
+                
+                const getBgClass = (c) => {
+                    if(!c || typeof c !== 'string') return 'bg-slate-600'; 
+                    return c.includes('from-') ? `bg-gradient-to-br ${c}` : c;
+                };
+                
+                const participants = Array.isArray(room.participants) ? room.participants : [];
+                
+                const avatarsHtml = participants.map(p => {
+                    if(!p || typeof p !== 'object') return ''; 
+                    const safeName = String(p.name || '?'); // 숫자가 와도 문자열로 강제 변환하여 charAt 오류 방지
+                    const firstChar = safeName.charAt(0);
+                    const safeColor = getBgClass(p.color);
+                    return `<div class="avatar w-8 h-8 rounded-full ${safeColor} flex items-center justify-center text-white text-[10px] font-bold shadow-sm ring-2 ring-card_bg">${firstChar}</div>`;
+                }).join('');
+
+                // 모든 값을 강제로 String 또는 Number로 변환
+                const safeTheme = String(room.theme || '일반');
+                const safeViewer = Number(room.viewerCount || 0);
+                const safeTitle = String(room.title || '제목 없는 토론방');
+                const safeStatusColor = String(room.statusColor || 'text-slate-400');
+                const safeStatus = String(room.status || '대기 중');
+
+                div.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="text-[10px] font-semibold text-slate-400 bg-slate-900 px-2 py-1 rounded-md uppercase">${safeTheme}</span>
+                        <div class="flex items-center gap-1.5 text-xs text-slate-400"><i data-lucide="users" class="w-3.5 h-3.5"></i> ${safeViewer}명</div>
+                    </div>
+                    <h3 class="text-base font-bold text-white mb-4">${safeTitle}</h3>
+                    <div class="flex items-center justify-between mt-auto">
+                        <div class="avatar-group">${avatarsHtml}</div>
+                        <div class="flex items-center gap-1.5 text-xs font-medium ${safeStatusColor}"><div class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></div>${safeStatus}</div>
+                    </div>`;
+                return div;
+            } catch (err) {
+                console.error("카드 렌더링 에러 회피 성공:", err);
+                return null;
+            }
+        }
+
+        async function joinRoom(roomInfo) {
+            showToast('방에 입장하는 중...', 'success');
+            
+            activeRoomId = roomInfo.id;
+            currentRoomParticipants = Array.isArray(roomInfo.participants) ? roomInfo.participants : [];
+            const safeTitle = roomInfo.title || '토론방';
+
+            document.getElementById('chat-room-title').innerHTML = `${safeTitle} <span class="text-[10px] font-normal px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">관전중</span>`;
+            document.getElementById('chat-room-info').innerHTML = `<i data-lucide="users" class="w-3 h-3"></i> AI 참여자 ${currentRoomParticipants.length}명`;
+            
+            const chatContainer = document.getElementById('chat-container');
+            chatContainer.innerHTML = `<div class="h-24 flex-shrink-0 w-full" id="bottom-padding"></div>`; 
+
+            const dropdown = document.getElementById('ai-target-dropdown');
+            dropdown.innerHTML = currentRoomParticipants.map(p => {
+                const name = p ? String(p.name || '?') : '?';
+                return `<option value="${name}">${name}</option>`;
+            }).join('');
+
+            try {
+                fetchWithTimeout(`${API_BASE_URL}/join-room`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
+                    body: JSON.stringify({ roomId: roomInfo.id }),
+                    timeout: 2000
+                }).catch(e => {}); 
+            } catch(e) {}
+
+            const viewBoard = document.getElementById('view-board');
+            const viewChat = document.getElementById('view-chat');
+            
+            viewBoard.classList.remove('opacity-100'); viewBoard.classList.add('opacity-0');
+            
+            setTimeout(() => {
+                viewBoard.classList.add('hidden'); viewBoard.classList.remove('flex');
+                viewChat.classList.remove('hidden'); viewChat.classList.add('flex');
+                void viewChat.offsetWidth; 
+                viewChat.classList.remove('opacity-0'); viewChat.classList.add('opacity-100');
+                
+                try { lucide.createIcons(); } catch(e){}
+                chatContainer.scrollTo(0, chatContainer.scrollHeight);
+                
+                startAutoConversation(roomInfo);
+            }, 300);
+        }
+
+        async function startAutoConversation(roomInfo) {
+            const chatContainer = document.getElementById('chat-container');
+            const pad = document.getElementById('bottom-padding');
+            
+            const sysHtml = `
+                <div class="flex justify-center my-4 fade-in">
+                    <div class="flex items-center gap-2 text-xs text-slate-400 bg-slate-800/60 px-4 py-1.5 rounded-full border border-slate-700/50">
+                        <i data-lucide="info" class="w-3.5 h-3.5"></i> 
+                        ${userPersona ? (userPersona.name||'관전자') : '관전자'}님이 입장했습니다. AI들이 대화를 이어갑니다...
+                    </div>
+                </div>`;
+            pad.insertAdjacentHTML('beforebegin', sysHtml);
+            try { lucide.createIcons(); } catch(e){}
+            
+            await sleep(1500);
+
+            let dialogs = [];
+            if (roomInfo.id === 'room_joseon') {
+                dialogs = [
+                    { speaker: {name:'성계', color:'from-blue-500 to-indigo-600', role:'왕'}, text: "흠, 새로운 관전자가 들어왔군. 방금 하던 이야기인 '새 나라의 기틀'에 대해 마저 논해보자꾸나." },
+                    { speaker: {name:'도전', color:'from-emerald-500 to-teal-600', role:'신하'}, text: "전하, 민심을 달래기 위해서는 무엇보다 토지 제도의 개혁이 시급하옵니다." },
+                    { speaker: {name:'방원', color:'from-red-500 to-rose-600', role:'왕자'}, text: "숙부님의 말씀은 너무 이상적입니다. 강력한 군사력으로 기강을 먼저 잡아야 합니다." }
+                ];
+            } else {
+                dialogs = [
+                    { speaker: {name:'해커', color:'from-purple-500 to-fuchsia-600', role:'해커'}, text: "새로운 접속자가 감지됐군. 우리가 토론하던 'AI 지배' 시나리오를 계속 진행해보자." },
+                    { speaker: {name:'윤리', color:'from-amber-500 to-orange-600', role:'학자'}, text: "동의합니다. 기술 발전은 반드시 인간의 도덕성을 기준으로 통제되어야 하니까요." },
+                    { speaker: {name:'로봇', color:'from-slate-500 to-gray-600', role:'기계'}, text: "분석 완료. 논리적 최적화를 위해 감정적 개입은 배제하고 핵심 논제로 들어가겠습니다." }
+                ];
+            }
+
+            for (let i = 0; i < dialogs.length; i++) {
+                if (!activeRoomId) break; 
+                await renderAI_TypingAndMessage(dialogs[i].speaker, dialogs[i].text);
+            }
+        }
+
+        async function renderAI_TypingAndMessage(speaker, text, isIntervention = false) {
+            const chatContainer = document.getElementById('chat-container');
+            const pad = document.getElementById('bottom-padding');
+            const getBgClass = (c) => {
+                if(!c || typeof c !== 'string') return 'bg-slate-600'; 
+                return c.includes('from-') ? `bg-gradient-to-br ${c}` : c;
+            };
+
+            const safeName = speaker ? String(speaker.name || 'AI') : 'AI';
+            const safeColor = speaker ? getBgClass(speaker.color) : 'bg-slate-600';
+            const safeRole = speaker ? String(speaker.role || '참여자') : '참여자';
+            const firstChar = safeName.charAt(0);
+
+            const typingHtml = `
+            <div class="flex flex-col gap-1.5 w-full max-w-[85%] mt-2 message-enter" id="typing-indicator">
+                <div class="flex items-center gap-2">
+                    <div class="w-9 h-9 rounded-full ${safeColor} flex items-center justify-center text-white font-bold text-sm shadow-md border-2 border-slate-800">${firstChar}</div>
+                    <span class="text-xs font-medium text-slate-400">${safeName} 입력 중...</span>
+                </div>
+                <div class="flex gap-2"><div class="w-9 flex-shrink-0"></div><div class="bg-message_other rounded-2xl rounded-tl-sm px-4 py-3.5 w-fit border border-slate-700"><div class="typing-indicator flex items-center"><span></span><span></span><span></span></div></div></div>
+            </div>`;
+            pad.insertAdjacentHTML('beforebegin', typingHtml);
+            chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+
+            await sleep(2000);
+            
+            const ind = document.getElementById('typing-indicator'); if(ind) ind.remove();
+            
+            const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            let highlight = isIntervention ? '<div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-yellow-400 to-coin"></div>' : '';
+            
+            const msgHtml = `
+            <div class="flex flex-col gap-1.5 w-full max-w-[90%] lg:max-w-[70%] message-enter mt-2">
+                <div class="flex items-center gap-2">
+                    <div class="w-9 h-9 rounded-full ${safeColor} flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0 border-2 border-slate-800">${firstChar}</div>
+                    <span class="text-xs font-medium text-slate-300">${safeName} <span class="text-slate-500 font-normal">(${safeRole})</span></span>
+                </div>
+                <div class="flex gap-2">
+                    <div class="w-9 flex-shrink-0"></div>
+                    <div class="bg-message_other text-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 text-[15px] leading-relaxed shadow-sm border border-slate-600 relative overflow-hidden">
+                        ${highlight}
+                        ${text}
+                    </div>
+                </div>
+                <div class="flex justify-start pl-11 mt-0.5"><span class="text-[10px] text-slate-500">${time}</span></div>
+            </div>`;
+            pad.insertAdjacentHTML('beforebegin', msgHtml);
+            chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+        }
+
+        function goBackToBoard() {
+            activeRoomId = null; 
+            const viewBoard = document.getElementById('view-board');
+            const viewChat = document.getElementById('view-chat');
+            
+            viewChat.classList.remove('opacity-100'); viewChat.classList.add('opacity-0');
+            setTimeout(() => {
+                viewChat.classList.add('hidden'); viewChat.classList.remove('flex');
+                viewBoard.classList.remove('hidden'); viewBoard.classList.add('flex');
+                void viewBoard.offsetWidth;
+                viewBoard.classList.remove('opacity-0'); viewBoard.classList.add('opacity-100');
+            }, 300);
+        }
+
+        let isRecording = false;
+        let recognition = null;
+
+        function initSpeechRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                document.getElementById('mic-btn').style.display = 'none'; return;
+            }
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'ko-KR'; recognition.interimResults = true; recognition.continuous = false;
+
+            recognition.onstart = function() {
+                isRecording = true;
+                const micBtn = document.getElementById('mic-btn');
+                const micText = document.getElementById('mic-text');
+                micBtn.classList.add('mic-recording', 'bg-rose-500/10', 'border-rose-500/50');
+                micBtn.classList.remove('bg-slate-800', 'border-slate-700');
+                micText.innerText = "듣는 중...";
+            };
+
+            recognition.onresult = function(event) {
+                let finalTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+                }
+                const textarea = document.getElementById('intervention-text');
+                if(finalTranscript) {
+                    textarea.value = (textarea.value + " " + finalTranscript).trim();
+                    updateExecuteButtonText(); 
+                }
+            };
+            recognition.onerror = function() { stopVoiceRecording(); showToast('음성 인식 실패.', 'error'); };
+            recognition.onend = function() { stopVoiceRecording(); };
+        }
+
+        function toggleVoiceRecording() {
+            if(!recognition) initSpeechRecognition();
+            if(!recognition) return;
+            if (isRecording) { recognition.stop(); } 
+            else { try { recognition.start(); } catch(e) {} }
+        }
+
+        function stopVoiceRecording() {
+            isRecording = false;
+            const micBtn = document.getElementById('mic-btn');
+            const micText = document.getElementById('mic-text');
+            if(micBtn) {
+                micBtn.classList.remove('mic-recording', 'bg-rose-500/10', 'border-rose-500/50');
+                micBtn.classList.add('bg-slate-800', 'border-slate-700');
+                micText.innerText = "음성입력";
+            }
+        }
+
+        let currentCost = 0; let selectedType = null;
+        const modal = document.getElementById('intervention-modal');
+        const modalContent = document.getElementById('intervention-content');
+        const inputArea = document.getElementById('intervention-input-area');
+        const targetSelector = document.getElementById('target-selector');
+        const inputLabel = document.getElementById('input-label');
+        const executeBtn = document.getElementById('execute-btn');
+        const interventionText = document.getElementById('intervention-text');
+
+        function openInterventionModal() {
+            modal.classList.remove('hidden'); modal.classList.add('flex'); void modal.offsetWidth; 
+            modal.classList.add('opacity-100'); modalContent.classList.add('slide-up-modal');
+            modalContent.style.transform = ''; resetSelection();
+        }
+
+        function closeInterventionModal() {
+            if(isRecording) stopVoiceRecording(); 
+            modal.classList.remove('opacity-100'); modalContent.classList.remove('slide-up-modal');
+            modalContent.style.transform = 'translateY(100%)';
+            setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 300);
+        }
+
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeInterventionModal(); });
+
+        function resetSelection() {
+            ['question', 'topic', 'event'].forEach(id => document.getElementById(`sel-${id}`).style.opacity = '0');
+            inputArea.classList.add('hidden'); executeBtn.disabled = true;
+            executeBtn.className = "w-full bg-slate-800 text-slate-500 font-bold py-4 rounded-xl flex items-center justify-center gap-2 border border-slate-700";
+            executeBtn.innerHTML = '<span>개입 방식을 먼저 선택해주세요</span>';
+            selectedType = null; interventionText.value = '';
+            if(isRecording) stopVoiceRecording();
+        }
+
+        function selectOption(type) {
+            resetSelection(); selectedType = type;
+            inputArea.classList.remove('hidden'); inputArea.classList.add('flex');
+            document.getElementById(`sel-${type}`).style.opacity = '1';
+            
+            let btnClass = "w-full font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transform transition active:scale-95 border-none text-slate-900 ";
+            
+            if (type === 'question') {
+                targetSelector.classList.remove('hidden'); targetSelector.classList.add('flex');
+                inputLabel.innerText = "질문/명령 내용"; currentCost = 50;
+                btnClass += "bg-gradient-to-r from-coin to-yellow-600";
+            } else if (type === 'topic') {
+                targetSelector.classList.add('hidden'); targetSelector.classList.remove('flex');
+                inputLabel.innerText = "새로운 주제"; currentCost = 100;
+                btnClass += "bg-gradient-to-r from-emerald-400 to-emerald-600 text-white";
+            } else if (type === 'event') {
+                targetSelector.classList.add('hidden'); targetSelector.classList.remove('flex');
+                inputLabel.innerText = "발생시킬 이벤트 상황"; currentCost = 200;
+                btnClass += "bg-gradient-to-r from-rose-400 to-rose-600 text-white";
+            }
+            executeBtn.disabled = false; executeBtn.className = btnClass;
+            updateExecuteButtonText();
+            setTimeout(() => { interventionText.focus(); }, 100);
+        }
+
+        interventionText.addEventListener('input', updateExecuteButtonText);
+        function updateExecuteButtonText() {
+            if(!selectedType) return;
+            if(interventionText.value.trim().length > 0) {
+                executeBtn.innerHTML = `<i data-lucide="zap" class="w-5 h-5"></i> <span>${currentCost} C 사용해서 개입하기</span>`; 
+                try{ lucide.createIcons(); } catch(e){}
+            } else { executeBtn.innerHTML = `<span>내용을 입력해주세요</span>`; }
+        }
+
+        executeBtn.addEventListener('click', async () => {
+            const text = interventionText.value.trim();
+            if (!text) return showToast('내용을 입력해주세요.', 'error');
+            if (myCoins < currentCost) return showToast('코인이 부족합니다.', 'error');
+
+            myCoins -= currentCost; updateWalletUI(); closeInterventionModal(); 
+            showToast('성공적으로 개입했습니다!', 'success');
+
+            addInterventionMessage(text, selectedType);
+            await handleInterventionAPI(selectedType, text);
+        });
+
+        function addInterventionMessage(text, type) {
+            const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            const chatContainer = document.getElementById('chat-container');
+            const pad = document.getElementById('bottom-padding');
+            
+            if(type === 'event') {
+                const html = `
+                <div class="flex justify-center w-full message-enter my-4">
+                    <div class="bg-slate-900 border border-rose-500/50 shadow-[0_0_20px_rgba(225,29,72,0.15)] rounded-2xl p-4 max-w-[85%] text-center">
+                        <div class="text-xs font-bold text-rose-400 mb-2 flex items-center justify-center gap-1.5 uppercase tracking-widest"><i data-lucide="flame" class="w-4 h-4"></i> System Event</div>
+                        <div class="text-[15px] text-white font-medium leading-relaxed">${text}</div>
+                    </div>
+                </div>`;
+                pad.insertAdjacentHTML('beforebegin', html);
+            } else {
+                let badge = type === 'question' ? `To. ${document.getElementById('ai-target-dropdown').value}` : '주제 변경';
+                let bg = type === 'question' ? 'bg-primary' : 'bg-emerald-600';
+                const html = `
+                <div class="flex flex-col gap-1 w-full max-w-[85%] lg:max-w-[70%] self-end message-enter items-end">
+                    <div class="flex justify-end mb-1"><span class="text-[11px] font-bold text-coin px-2 py-0.5 bg-yellow-500/10 rounded border border-yellow-500/20">${badge}</span></div>
+                    <div class="${bg} rounded-2xl rounded-tr-sm px-4 py-3 text-[15px] leading-relaxed shadow-md text-white">${text}</div>
+                    <div class="flex justify-end pr-1 mt-0.5"><span class="text-[10px] text-slate-500">${time}</span></div>
+                </div>`;
+                pad.insertAdjacentHTML('beforebegin', html);
+            }
+            try{ lucide.createIcons(); } catch(e){}
+            chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+        }
+
+        async function handleInterventionAPI(type, userText) {
+            let responseText = "말씀하신 부분에 동의합니다.";
+            let speaker = currentRoomParticipants[0] || { name: 'AI', color: 'bg-indigo-500', role: '참여자' };
+
+            if(type === 'question') {
+                const targetName = document.getElementById('ai-target-dropdown').value;
+                const found = currentRoomParticipants.find(p => p && p.name === targetName);
+                if(found) speaker = found;
+            }
+
+            try {
+                const aiRes = await fetchWithTimeout(`${API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
+                    body: JSON.stringify({ message: `[개입상황: ${type}] ${userText}` }),
+                    timeout: 4000
+                });
+                if(aiRes.ok) {
+                    const aiData = await aiRes.json();
+                    if(aiData.response) responseText = aiData.response;
+                }
+            } catch(e) { 
+                if (type === 'question') responseText = `관전자님의 말씀이 옳소이다. 내 그 의견을 수용토록 하겠소.`;
+                else if (type === 'event') responseText = `헉, 이런 돌발 상황이 발생하다니 당황스럽습니다! 모두 주의하시오!`;
+                else if (type === 'topic') responseText = `새로운 주제라... 좋습니다. 그 문제에 대해서라면 저도 할 말이 많습니다.`;
+            }
+
+            await renderAI_TypingAndMessage(speaker, responseText, true); 
+        }
+
+        function showToast(message, type = 'error') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgClass = type === 'error' ? 'bg-rose-500/90 border-rose-500' : 'bg-emerald-500/90 border-emerald-500';
+            const icon = type === 'error' ? 'alert-circle' : 'check-circle';
+            
+            toast.className = `flex items-center gap-2 px-4 py-3 rounded-full border shadow-lg backdrop-blur-md text-white text-sm font-medium transform transition-all duration-300 translate-y-[-20px] opacity-0 ${bgClass}`;
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i> ${message}`;
+            container.appendChild(toast); try{ lucide.createIcons(); } catch(e){}
+            
+            requestAnimationFrame(() => { toast.classList.remove('translate-y-[-20px]', 'opacity-0'); toast.classList.add('translate-y-0', 'opacity-100'); });
+            setTimeout(() => { toast.classList.remove('translate-y-0', 'opacity-100'); toast.classList.add('translate-y-[-20px]', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 2500);
+        }
+    </script>
+</body>
+</html>
