@@ -657,6 +657,43 @@ let cycleCount = 0;
                 cycleCount++;
             }
         }
+        
+async function renderAI_TypingAndMessage(speaker, message, isIntervention = false) {
+            const chatContainer = document.getElementById('chat-container');
+            const pad = document.getElementById('bottom-padding');
+            
+            // 1. 타이핑 중 인디케이터 생성
+            const typingId = 'typing-' + Math.random().toString(36).substr(2, 9);
+            const typingHtml = `
+                <div class="flex gap-3 mb-4 fade-in" id="${typingId}">
+                    <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-[10px] text-white font-bold shrink-0">${speaker.name.charAt(0)}</div>
+                    <div class="bg-message_other px-4 py-3 rounded-2xl rounded-tl-none">
+                        <div class="typing-indicator flex items-center h-4"><span></span><span></span><span></span></div>
+                    </div>
+                </div>`;
+            pad.insertAdjacentHTML('beforebegin', typingHtml);
+            chatContainer.scrollTo(0, chatContainer.scrollHeight);
+            
+            await sleep(1500); // 1.5초 정도 타이핑하는 척 대기
+            
+            // 2. 타이핑 인디케이터 제거 후 실제 메시지 삽입
+            const typingEl = document.getElementById(typingId);
+            if(typingEl) typingEl.remove();
+            
+            const msgHtml = `
+                <div class="flex gap-3 mb-4 message-enter ${isIntervention ? 'border-l-4 border-coin pl-2' : ''}">
+                    <div class="w-8 h-8 rounded-full ${speaker.color || 'bg-slate-600'} flex items-center justify-center text-[10px] text-white font-bold shrink-0">${speaker.name.charAt(0)}</div>
+                    <div class="bg-message_other px-4 py-3 rounded-2xl rounded-tl-none text-sm text-slate-200 leading-relaxed shadow-lg">
+                        <span class="font-bold text-xs text-slate-400 block mb-0.5">${speaker.name}</span>
+                        ${message}
+                    </div>
+                </div>`;
+            pad.insertAdjacentHTML('beforebegin', msgHtml);
+            chatContainer.scrollTo(0, chatContainer.scrollHeight);
+            
+            try { lucide.createIcons(); } catch(e){}
+        }
+
 
 async function handleInterventionAPI(type, userText) {
             let responseText = "말씀하신 부분에 동의합니다.";
