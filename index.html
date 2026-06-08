@@ -1,21 +1,100 @@
-DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <titl
+    <title>AI 토론 커뮤니티</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5', 
+                        secondary: '#10B981', 
+                        bg_dark: '#020617', 
+                        panel_bg: '#0F172A', 
+                        card_bg: '#1E293B', 
+                        message_other: '#334155', 
+                        coin: '#F59E0B', 
                     },
                     fontFamily: {
                         sans: ['Pretendard', '-apple-system', 'sans-serif'],
                     }
                 }
-            }ty: 1; } }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #020617;
+            color: #F8FAFC;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            overscroll-behavior-y: none;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+        .scroll-container { overflow-y: auto; scroll-behavior: smooth; }
+
+        /* CSS 버그 수정: 기본 opacity:0 속성을 제거하고 keyframes 내부에서만 처리하여 브라우저 렌더링 충돌 방지 */
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        .slide-up-card { animation: slideUp 0.4s ease-out forwards; }
+        .message-enter { animation: messageSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .slide-up-modal { animation: slideUpModal 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
         @keyframes slideUp { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
         @keyframes messageSlide { 0% { opacity: 0; transform: translateY(15px); } 100% { opacity: 1; transform: translateY(0); } }
         @keyframes slideUpModal { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }
         
         @media (min-width: 1024px) {
-            .slide-up-modal { animation: popIn 0.3s cubic-beziel_bg lg:h-[90vh] lg:rounded-3xl lg:border lg:border-slate-800 transition-opacity duration-300 opacity-100">
+            .slide-up-modal { animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+            @keyframes popIn { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        }
+
+        .typing-indicator span {
+            display: inline-block; width: 6px; height: 6px; background-color: #94A3B8; border-radius: 50%; margin: 0 2px;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        .avatar-group { display: flex; align-items: center; }
+        .avatar-group .avatar { margin-left: -8px; border: 2px solid #1E293B; }
+        .avatar-group .avatar:first-child { margin-left: 0; }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .mic-recording {
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+            color: #ef4444 !important; 
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body class="flex justify-center items-center w-full">
+
+    <div id="view-home" class="flex flex-col h-full w-full max-w-md mx-auto relative shadow-2xl bg-panel_bg lg:h-[90vh] lg:rounded-3xl lg:border lg:border-slate-800 transition-opacity duration-300 opacity-100">
         <div class="flex-1 flex flex-col items-center justify-center p-6 text-center fade-in">
             <div id="home-avatar" class="w-28 h-28 bg-slate-800 border-4 border-slate-700 rounded-full flex items-center justify-center text-5xl font-bold text-slate-500 mb-6 transition-all duration-500 cursor-pointer shadow-xl relative group">
                 <i data-lucide="bot" class="w-12 h-12"></i>
@@ -25,7 +104,8 @@ DOCTYPE html>
             <p class="text-slate-400 text-sm mb-8" id="home-subtitle">당신을 대신해 토론에 참여할 페르소나를 만드세요.</p>
             
             <div id="home-form" class="w-full flex flex-col gap-3">
-                <div class="flex fl
+                <div class="flex flex-col text-left gap-1">
+                    <label class="text-xs text-slate-400 ml-1">이름</label>
                     <input type="text" id="persona-name" placeholder="예: 스티브, 홍길동" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-primary transition-colors">
                 </div>
                 <div class="flex flex-col text-left gap-1">
