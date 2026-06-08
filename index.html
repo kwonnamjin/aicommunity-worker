@@ -46,18 +46,20 @@
 
         .scroll-container { overflow-y: auto; scroll-behavior: smooth; }
 
+        /* CSS 버그 수정: 기본 opacity:0 속성을 제거하고 keyframes 내부에서만 처리하여 브라우저 렌더링 충돌 방지 */
         .fade-in { animation: fadeIn 0.3s ease-out forwards; }
-        .slide-up-card { animation: slideUp 0.4s ease-out forwards; opacity: 0; transform: translateY(10px); }
-        .message-enter { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(15px); }
+        .slide-up-card { animation: slideUp 0.4s ease-out forwards; }
+        .message-enter { animation: messageSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .slide-up-modal { animation: slideUpModal 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideUpModal { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes slideUp { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+        @keyframes messageSlide { 0% { opacity: 0; transform: translateY(15px); } 100% { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUpModal { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }
         
         @media (min-width: 1024px) {
             .slide-up-modal { animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-            @keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+            @keyframes popIn { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         }
 
         .typing-indicator span {
@@ -285,7 +287,6 @@
         let currentRoomParticipants = [];
         let userPersona = null; 
 
-        // [해결책 2] 브라우저 환경에 따라 LocalStorage가 막혀있어 발생하는 치명적 크래시 방어
         function getSafeDeviceId() {
             try {
                 let id = localStorage.getItem('deviceId');
@@ -295,7 +296,6 @@
                 }
                 return id;
             } catch (e) {
-                console.warn('LocalStorage 차단됨. 임시 ID를 사용합니다.');
                 return 'device_' + Math.random().toString(36).substr(2, 9);
             }
         }
@@ -312,7 +312,6 @@
         const DEVICE_ID = getSafeDeviceId();
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-        // 타임아웃이 걸린 Fetch 함수 (무한 Pending 대기열 방지)
         async function fetchWithTimeout(resource, options = {}) {
             const { timeout = 3500 } = options; 
             const controller = new AbortController();
@@ -349,7 +348,7 @@
             }
 
             fetchWallet();
-            fetchRooms(); // 화면 목록 렌더링 호출 지점
+            fetchRooms(); 
         });
 
         async function savePersona() {
@@ -462,17 +461,17 @@
                 const res = await fetchWithTimeout(`${API_BASE_URL}/rooms`, { timeout: 3500 });
                 if(res.ok) {
                     const data = await res.json();
-                    // 배열인지 명확하게 검증하여 이상한 객체가 들어오는 것을 원천차단
                     if(data && Array.isArray(data.rooms) && data.rooms.length > 0) {
-                        rooms = data.rooms;
+                        // null이나 잘못된 데이터 필터링
+                        rooms = data.rooms.filter(r => r && typeof r === 'object');
                     }
                 }
             } catch(e) { 
                 console.warn("목록 호출 실패. 안전망(더미) 가동."); 
             }
             
-            // 데이터가 없거나 에러가 났을 때 무조건 기본 데이터를 채움 (빈 화면 방지)
-            if(!Array.isArray(rooms) || rooms.length === 0) {
+            // 데이터가 없거나 서버 에러 났을 때 무조건 기본 데이터를 채움 (빈 화면 방지)
+            if(rooms.length === 0) {
                 rooms = [
                     { id: 'room_joseon', title: '조선 건국 방향성 토론', theme: '역사/정치', viewerCount: 142, status: '불꽃 튀는 중', statusColor: 'text-rose-400', participants: [{ name: '성계', color: 'from-blue-500 to-indigo-600', role:'왕' }, { name: '도전', color: 'from-emerald-500 to-teal-600', role:'신하' }, { name: '방원', color: 'from-red-500 to-rose-600', role:'왕자' }] },
                     { id: 'room_future', title: 'AI는 인류를 지배할 것인가', theme: '미래기술/철학', viewerCount: 89, status: '논리적 전개 중', statusColor: 'text-primary', participants: [{ name: '해커', color: 'from-purple-500 to-fuchsia-600', role:'해커' }, { name: '윤리', color: 'from-amber-500 to-orange-600', role:'학자' }, { name: '로봇', color: 'from-slate-500 to-gray-600', role:'기계' }] }
@@ -484,7 +483,7 @@
             
             listContainer.innerHTML = '';
             
-            // [해결책 1-1] 개별 카드 생성 중 에러가 나도 전체 화면이 터지지 않게 루프 방어 처리
+            // 엄격한 에러 방지 처리 루프
             rooms.forEach((room, i) => {
                 const cardNode = createRoomCard(room, i);
                 if(cardNode) listContainer.appendChild(cardNode);
@@ -495,33 +494,34 @@
 
         function createRoomCard(room, index) {
             try {
-                // [해결책 1-2] 넘어온 데이터가 없어도 죽지 않게 옵셔널(||) 처리
+                if (!room || typeof room !== 'object') return null; // 완벽한 타입 방어
+
                 const div = document.createElement('div');
                 div.className = 'bg-card_bg rounded-2xl p-4 border border-slate-700/50 cursor-pointer hover:border-primary/50 relative overflow-hidden group slide-up-card';
                 div.style.animationDelay = `${index * 0.1}s`;
                 div.onclick = () => joinRoom(room);
                 
                 const getBgClass = (c) => {
-                    if(!c) return 'bg-slate-600'; 
+                    if(!c || typeof c !== 'string') return 'bg-slate-600'; 
                     return c.includes('from-') ? `bg-gradient-to-br ${c}` : c;
                 };
                 
-                // 참가자 배열이 아예 누락되었을 경우를 대비
                 const participants = Array.isArray(room.participants) ? room.participants : [];
                 
                 const avatarsHtml = participants.map(p => {
-                    if(!p) return ''; // 참가자 객체가 망가졌을 때
-                    const safeName = p.name || '?'; // 이름이 비어있을 때
+                    if(!p || typeof p !== 'object') return ''; 
+                    const safeName = String(p.name || '?'); // 숫자가 와도 문자열로 강제 변환하여 charAt 오류 방지
                     const firstChar = safeName.charAt(0);
                     const safeColor = getBgClass(p.color);
                     return `<div class="avatar w-8 h-8 rounded-full ${safeColor} flex items-center justify-center text-white text-[10px] font-bold shadow-sm ring-2 ring-card_bg">${firstChar}</div>`;
                 }).join('');
 
-                const safeTheme = room.theme || '일반';
-                const safeViewer = room.viewerCount || 0;
-                const safeTitle = room.title || '제목 없는 토론방';
-                const safeStatusColor = room.statusColor || 'text-slate-400';
-                const safeStatus = room.status || '대기 중';
+                // 모든 값을 강제로 String 또는 Number로 변환
+                const safeTheme = String(room.theme || '일반');
+                const safeViewer = Number(room.viewerCount || 0);
+                const safeTitle = String(room.title || '제목 없는 토론방');
+                const safeStatusColor = String(room.statusColor || 'text-slate-400');
+                const safeStatus = String(room.status || '대기 중');
 
                 div.innerHTML = `
                     <div class="flex justify-between items-start mb-3">
@@ -535,7 +535,6 @@
                     </div>`;
                 return div;
             } catch (err) {
-                // 치명적 데이터 에러 발생 시 빈 요소(null)를 반환해 화면 크래시를 회피
                 console.error("카드 렌더링 에러 회피 성공:", err);
                 return null;
             }
@@ -545,7 +544,6 @@
             showToast('방에 입장하는 중...', 'success');
             
             activeRoomId = roomInfo.id;
-            // participants 방어 처리
             currentRoomParticipants = Array.isArray(roomInfo.participants) ? roomInfo.participants : [];
             const safeTitle = roomInfo.title || '토론방';
 
@@ -557,7 +555,7 @@
 
             const dropdown = document.getElementById('ai-target-dropdown');
             dropdown.innerHTML = currentRoomParticipants.map(p => {
-                const name = p ? (p.name || '?') : '?';
+                const name = p ? String(p.name || '?') : '?';
                 return `<option value="${name}">${name}</option>`;
             }).join('');
 
@@ -629,13 +627,13 @@
             const chatContainer = document.getElementById('chat-container');
             const pad = document.getElementById('bottom-padding');
             const getBgClass = (c) => {
-                if(!c) return 'bg-slate-600'; 
+                if(!c || typeof c !== 'string') return 'bg-slate-600'; 
                 return c.includes('from-') ? `bg-gradient-to-br ${c}` : c;
             };
 
-            const safeName = speaker ? (speaker.name || 'AI') : 'AI';
+            const safeName = speaker ? String(speaker.name || 'AI') : 'AI';
             const safeColor = speaker ? getBgClass(speaker.color) : 'bg-slate-600';
-            const safeRole = speaker ? (speaker.role || '참여자') : '참여자';
+            const safeRole = speaker ? String(speaker.role || '참여자') : '참여자';
             const firstChar = safeName.charAt(0);
 
             const typingHtml = `
@@ -674,7 +672,6 @@
             pad.insertAdjacentHTML('beforebegin', msgHtml);
             chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
         }
-
 
         function goBackToBoard() {
             activeRoomId = null; 
