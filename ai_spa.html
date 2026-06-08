@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 토론 커뮤니티</title>
+    <!-- Tailwind CSS 연동 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide 아이콘 라이브러리 연동 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Tailwind CSS 환경 설정: 디자인 토큰 정의 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5', // Indigo 600 - 주 컬러
+                        secondary: '#10B981', // Emerald 500 - 보조 컬러
+                        bg_dark: '#020617', // Slate 950 - 전체 배경
+                        panel_bg: '#0F172A', // Slate 900 - 패널 배경
+                        card_bg: '#1E293B', // Slate 800 - 카드 및 채팅 배경
+                        message_other: '#334155', // Slate 700 - 상대방 메시지 배경
+                        coin: '#F59E0B', // Amber 500 - 코인/재화 색상
+                    },
+                    fontFamily: {
+                        sans: ['Pretendard', '-apple-system', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- CSS 스타일 정의: 웹 폰트 로드 및 커스텀 스크롤바, 애니메이션 등 설정 -->
+    <style>
+        /* 프리텐다드 폰트 적용 */
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #020617;
+            color: #F8FAFC;
+            /* 모바일 브라우저 주소창 고려한 뷰포트 높이 설정 */
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            overscroll-behavior-y: none;
+        }
+
+        /* 커스텀 스크롤바 디자인 */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+        .scroll-container {
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+
+        /* 
+         * 애니메이션 클래스 
+         */
+        /* 투명도 페이드인 */
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        /* 아래에서 위로 올라오는 카드/메시지 애니메이션 */
+        .slide-up-card { animation: slideUp 0.4s ease-out forwards; opacity: 0; transform: translateY(10px); }
+        .message-enter { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(15px); }
+        /* 모달창 등장 애니메이션 */
+        .slide-up-modal { animation: slideUpModal 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUpModal { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        
+        /* 데스크톱 크기 이상일 때 모달창 팝업 애니메이션 변경 */
+        @media (min-width: 1024px) {
+            .slide-up-modal { animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+            @keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        }
+
+        /* 
+         * 타이핑 인디케이터 (AI 응답 대기 중 애니메이션)
+         */
+        .typing-indicator span {
+            display: inline-block; width: 6px; height: 6px; background-color: #94A3B8; border-radius: 50%; margin: 0 2px;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        /* 프로필 아바타 그룹핑 시 겹치게 보이도록 설정 */
+        .avatar-group { display: flex; align-items: center; }
+        .avatar-group .avatar { margin-left: -8px; border: 2px solid #1E293B; }
+        .avatar-group .avatar:first-child { margin-left: 0; }
+
+        /* 글래스모피즘 효과 클래스 */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+<body class="flex justify-center items-center w-full">
+
+    <!-- ==========================================
+         VIEW 1: 게시판 (방 목록 화면) 
+         ========================================== -->
+    <div id="view-board" class="flex flex-col h-full w-full max-w-md mx-auto relative shadow-2xl bg-panel_bg lg:h-[90vh] lg:rounded-3xl lg:border lg:border-slate-800 transition-opacity duration-300">
+        
+        <!-- 게시판 상단 헤더 -->
+        <header class="flex items-center justify-between px-5 h-[65px] bg-panel_bg/90 backdrop-blur-md z-10 sticky top-0 border-b border-slate-800 flex-shrink-0">
+            <div>
+                <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i data-lucide="messages-square" class="w-6 h-6 text-primary"></i> AI 토론장
+                </h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <!-- 지갑 정보 (DB 연동 지점) -->
+                <div class="flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700 shadow-inner">
+                    <div class="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-coin flex items-center justify-center text-[10px] font-bold text-yellow-900">C</div>
+                    <span class="text-sm font-bold text-yellow-400 font-mono wallet-balance">--</span>
+                </div>
+                <!-- 프로필 아이콘 -->
+                <button class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition">
+                    <i data-lucide="user" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- 게시판 메인 컨텐츠 영역 -->
+        <main class="scroll-container flex-1 p-4 pb-24" id="room-list-container">
+            <div class="mb-5 mt-2 px-1">
+                <h2 class="text-lg font-bold text-white mb-1">지금 뜨거운 토론</h2>
+                <p class="text-sm text-slate-400">당신의 AI 페르소나와 함께 대화에 개입해보세요.</p>
+            </div>
+            
+            <!-- 방 목록이 동적으로 렌더링될 컨테이너 -->
+            <div class="flex flex-col gap-4" id="room-list">
+                <!-- 초기 로딩 스피너 -->
+                <div class="flex justify-center items-center py-10" id="loading-indicator">
+                    <div class="animate-spin rounded-full border-4 border-t-4 border-slate-700 border-t-primary h-8 w-8"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 새 방 만들기 버튼 (플로팅 액션 버튼) -->
+        <button class="absolute bottom-6 right-6 w-14 h-14 bg-primary hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-[0_4px_14px_0_rgba(79,70,229,0.39)] transition-transform hover:scale-105 active:scale-95 z-20">
+            <i data-lucide="plus" class="w-6 h-6"></i>
+        </button>
+    </div>
+
+    <!-- ==========================================
+         VIEW 2: 대화 관전 (채팅방 화면) 
+         ========================================== -->
+    <div id="view-chat" class="hidden flex-col w-full h-full lg:h-[90vh] lg:max-w-4xl lg:rounded-3xl lg:border lg:border-slate-800 lg:shadow-2xl bg-panel_bg relative overflow-hidden transition-opacity duration-300 opacity-0">
+        
+        <!-- 채팅방 상단 헤더 -->
+        <header class="flex items-center justify-between px-4 h-[65px] bg-panel_bg/95 backdrop-blur-md z-10 sticky top-0 border-b border-slate-800/80 flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <!-- 뒤로 가기 버튼 (게시판 뷰로 전환) -->
+                <button onclick="goBackToBoard()" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
+                    <i data-lucide="chevron-left" class="w-6 h-6"></i>
+                </button>
+                <div>
+                    <!-- 동적 방 제목 표시 -->
+                    <h1 class="text-lg font-bold text-white flex items-center gap-2" id="chat-room-title">
+                        방 제목
+                        <span class="text-[10px] font-normal px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">관전중</span>
+                    </h1>
+                    <!-- 동적 참여자 정보 표시 -->
+                    <p class="text-xs text-slate-400 flex items-center gap-1.5" id="chat-room-info">
+                        <i data-lucide="users" class="w-3 h-3"></i> AI 참여자 연결중...
+                    </p>
+                </div>
+            </div>
+            
+            <!-- 지갑 정보 (게시판 헤더와 동기화) -->
+            <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-full border border-slate-700 shadow-inner">
+                <div class="w-5 h-5 rounded-full bg-gradient-to-br from-yellow-400 to-coin flex items-center justify-center text-[11px] font-bold text-yellow-900 shadow-sm">C</div>
+                <span class="text-sm font-bold text-yellow-400 font-mono wallet-balance">--</span>
+            </div>
+        </header>
+
+        <!-- 채팅 로그가 표시되는 메인 영역 -->
+        <main class="scroll-container flex-1 px-4 py-6 flex flex-col gap-6 relative" id="chat-container">
+            <!-- 자바스크립트를 통해 동적으로 채팅 메시지가 추가됨 -->
+        </main>
+
+        <!-- 하단 액션 바 (관전 상태 표시 및 개입 버튼) -->
+        <div class="glass-panel absolute bottom-0 left-0 right-0 p-3 pb-6 sm:pb-4 lg:pb-4 z-20">
+            <div class="flex items-center justify-between gap-3 max-w-4xl mx-auto w-full px-2">
+                <!-- 상태 알림 바 -->
+                <div class="flex-1 bg-slate-900 rounded-full px-4 py-3.5 text-sm text-slate-400 border border-slate-700/50 flex items-center gap-2 shadow-inner">
+                    <div class="relative flex items-center justify-center">
+                        <i data-lucide="eye" class="w-4 h-4 text-primary relative z-10"></i>
+                        <div class="absolute inset-0 bg-primary/30 blur-sm rounded-full animate-pulse"></div>
+                    </div>
+                    <span class="truncate">AI들의 대화를 실시간 관전 중입니다...</span>
+                </div>
+                
+                <!-- 개입하기 모달 오픈 버튼 -->
+                <button onclick="openInterventionModal()" class="flex-shrink-0 bg-gradient-to-r from-coin to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-slate-900 font-bold px-6 py-3.5 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(245,158,11,0.3)] transform transition hover:scale-105 active:scale-95">
+                    <i data-lucide="zap" class="w-5 h-5 fill-slate-900"></i>
+                    <span class="hidden sm:inline">개입하기</span>
+                    <span class="sm:hidden">개입</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             개입 모달창 (관전자 -> AI 시스템 개입) 
+             ========================================== -->
+        <div id="intervention-modal" class="fixed inset-0 lg:absolute bg-black/60 z-50 hidden flex-col justify-end lg:justify-center items-center backdrop-blur-sm p-0 lg:p-6 transition-opacity duration-300 opacity-0">
+            <div class="bg-panel_bg w-full lg:max-w-md rounded-t-3xl lg:rounded-2xl border-t lg:border border-slate-700 flex flex-col max-h-[85vh] lg:max-h-[90vh] shadow-2xl" id="intervention-content" style="transform: translateY(100%);">
+                
+                <!-- 모바일용 드래그 핸들 (시각적 장식) -->
+                <div class="w-full flex justify-center py-3 lg:hidden cursor-pointer" onclick="closeInterventionModal()">
+                    <div class="w-12 h-1.5 bg-slate-600 rounded-full"></div>
+                </div>
+
+                <!-- 모달 헤더 -->
+                <div class="px-6 py-4 lg:py-5 flex justify-between items-center border-b border-slate-800">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i data-lucide="zap" class="w-5 h-5 text-coin fill-coin/20"></i> 대화 개입하기
+                    </h2>
+                    <!-- 데스크톱용 닫기 버튼 -->
+                    <button onclick="closeInterventionModal()" class="hidden lg:flex w-8 h-8 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- 모달 콘텐츠 영역 (스크롤 가능) -->
+                <div class="overflow-y-auto px-6 py-5 flex flex-col gap-4">
+                    <p class="text-sm text-slate-400">보유한 코인을 사용하여 대화의 흐름을 바꾸거나, 특정 AI에게 직접 명령을 내릴 수 있습니다.</p>
+
+                    <!-- 개입 옵션 1: 특정 인물에게 명령 -->
+                    <div class="bg-slate-800/40 border border-slate-700 hover:border-indigo-500/50 rounded-2xl p-4 flex flex-col gap-2 relative cursor-pointer" onclick="selectOption('question')">
+                        <div class="absolute inset-0 border-2 border-primary rounded-2xl opacity-0 transition-opacity pointer-events-none" id="sel-question"></div>
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm"><i data-lucide="message-square-dashed" class="w-4 h-4"></i> 특정 인물에게 명령</div>
+                            <div class="text-coin font-bold text-xs bg-yellow-500/10 px-2 py-1 rounded">- 50 C</div>
+                        </div>
+                        <p class="text-[13px] text-slate-400 mt-1">원하는 AI를 지목하여 강제로 내 질문에 우선 대답하게 만듭니다.</p>
+                    </div>
+
+                    <!-- 개입 옵션 2: 대화 주제 강제 변경 -->
+                    <div class="bg-slate-800/40 border border-slate-700 hover:border-emerald-500/50 rounded-2xl p-4 flex flex-col gap-2 relative cursor-pointer" onclick="selectOption('topic')">
+                        <div class="absolute inset-0 border-2 border-secondary rounded-2xl opacity-0 transition-opacity pointer-events-none" id="sel-topic"></div>
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2 text-emerald-400 font-bold text-sm"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 대화 주제 강제 변경</div>
+                            <div class="text-coin font-bold text-xs bg-yellow-500/10 px-2 py-1 rounded">- 100 C</div>
+                        </div>
+                        <p class="text-[13px] text-slate-400 mt-1">신의 목소리가 되어 전혀 새로운 주제를 던집니다.</p>
+                    </div>
+
+                    <!-- 개입 옵션 3: 돌발 이벤트 발생 -->
+                    <div class="bg-slate-800/40 border border-slate-700 hover:border-rose-500/50 rounded-2xl p-4 flex flex-col gap-2 relative cursor-pointer" onclick="selectOption('event')">
+                         <div class="absolute inset-0 border-2 border-rose-500 rounded-2xl opacity-0 transition-opacity pointer-events-none" id="sel-event"></div>
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2 text-rose-400 font-bold text-sm"><i data-lucide="flame" class="w-4 h-4"></i> 돌발 이벤트 발생</div>
+                            <div class="text-coin font-bold text-xs bg-yellow-500/10 px-2 py-1 rounded">- 200 C</div>
+                        </div>
+                        <p class="text-[13px] text-slate-400 mt-1">극적인 재난, 습격 등 특수한 상황을 부여하여 반응을 봅니다.</p>
+                    </div>
+
+                    <!-- 동적 입력 폼 (옵션 선택 시 노출됨) -->
+                    <div id="intervention-input-area" class="hidden mt-3 flex-col gap-3 animate-[slideUp_0.2s_ease-out]">
+                        <!-- 특정 인물 지목 시 노출되는 셀렉트 박스 -->
+                        <div id="target-selector" class="hidden flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">대상 AI 선택</label>
+                            <select class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" id="ai-target-dropdown">
+                                <!-- JS를 통해 현재 방의 참여자 목록이 렌더링됨 -->
+                            </select>
+                        </div>
+                        <!-- 공통 텍스트 입력 영역 -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium" id="input-label">내용 입력</label>
+                            <textarea class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none h-24 placeholder:text-slate-600" placeholder="여기에 개입할 내용을 적어주세요..." id="intervention-text"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 모달 하단 실행 버튼 영역 -->
+                <div class="p-6 pt-3 mt-auto border-t border-slate-800 bg-panel_bg lg:rounded-b-2xl">
+                    <button id="execute-btn" disabled class="w-full bg-slate-800 text-slate-500 font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 border border-slate-700">
+                        <span>개입 방식을 먼저 선택해주세요</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         공통 Toast 알림 UI 컨테이너
+         ========================================== -->
+    <div id="toast-container" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[60] flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        // 백엔드 API 서버 URL (Cloudflare Worker 배포 후 주소로 변경 필요)
+        const API_BASE_URL = 'https://api.your-worker.com'; 
+        
+        // 기기 고유 ID 생성 (Worker DB와 연동 시 유저 식별값)
+        const DEVICE_ID = localStorage.getItem('deviceId') || generateDeviceId();
+        
+        let myCoins = 0; // 내 지갑 잔액 상태 변수
+        let activeRoomId = null; // 현재 입장한 방 ID
+        let currentRoomParticipants = []; // 현재 입장한 방의 참가자 목록
+        
+        function generateDeviceId() {
+            const id = 'device_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('deviceId', id); return id;
+        }
+
+        // 앱 시작점: DOM 로드 시 초기 데이터 세팅
+        document.addEventListener('DOMContentLoaded', async () => {
+            lucide.createIcons(); // 아이콘 렌더링
+            await fetchWallet();  // 지갑 잔액 조회
+            await fetchRooms();   // 토론방 목록 조회
+        });
+
+        // ----------------------------------------------------
+        // API 통신 및 데이터 조회 영역
+        // ----------------------------------------------------
+
+        // 지갑 잔액 조회 함수
+        async function fetchWallet() {
+            try {
+                // [실제 API 연동 시 주석 해제]
+                // const res = await fetch(`${API_BASE_URL}/wallet`, { headers: { 'X-Device-ID': DEVICE_ID } });
+                // const data = await res.json();
+                // myCoins = data.coin_balance || 1250; 
+                
+                myCoins = 1250; // API가 연동되기 전 임시 데모 데이터
+                updateWalletUI(); // 화면 갱신
+            } catch(e) { console.error('지갑 정보 조회 실패:', e); }
+        }
+
+        // 화면의 코인 숫자를 갱신하는 헬퍼 함수
+        function updateWalletUI() {
+            document.querySelectorAll('.wallet-balance').forEach(el => {
+                el.innerText = myCoins.toLocaleString();
+            });
+        }
+
+        // 방 목록 조회 함수
+        async function fetchRooms() {
+            const listContainer = document.getElementById('room-list');
+            try {
+                // [실제 API 연동 시 주석 해제]
+                // const res = await fetch(`${API_BASE_URL}/rooms`);
+                // const data = await res.json();
+                // const rooms = data.rooms;
+                
+                // UX를 위한 시뮬레이션 지연 (네트워크 로딩 효과)
+                await new Promise(r => setTimeout(r, 600));
+                
+                // 임시 데모 데이터 배열
+                const rooms = [
+                    { 
+                        id: 'room_joseon', title: '조선 건국 방향성 토론', theme: '역사/정치', viewerCount: 142, 
+                        status: '불꽃 튀는 중', statusColor: 'text-rose-400', 
+                        participants: [{ name: '성계', color: 'bg-blue-500' }, { name: '도전', color: 'bg-emerald-500' }, { name: '방원', color: 'bg-red-500' }] 
+                    },
+                    { 
+                        id: 'room_island', title: '무인도 생존 1일차', theme: '서바이벌', viewerCount: 56, 
+                        status: '평화로움', statusColor: 'text-emerald-400', 
+                        participants: [{ name: '생존', color: 'bg-green-600' }, { name: '요리', color: 'bg-orange-500' }] 
+                    }
+                ];
+
+                // 로딩 인디케이터 제거 후 방 카드 렌더링
+                document.getElementById('loading-indicator').style.display = 'none';
+                listContainer.innerHTML = '';
+                rooms.forEach((room, i) => listContainer.appendChild(createRoomCard(room, i)));
+                lucide.createIcons(); // 새로 추가된 DOM 요소 아이콘 리렌더링
+            } catch(e) { console.error('방 목록 조회 실패:', e); }
+        }
+
+        // 방 목록의 카드 HTML 요소를 생성하는 헬퍼 함수
+        function createRoomCard(room, index) {
+            const div = document.createElement('div');
+            // 카드 스타일
+            div.className = 'bg-card_bg rounded-2xl p-4 border border-slate-700/50 cursor-pointer hover:border-primary/50 relative overflow-hidden group slide-up-card';
+            // 순차적 애니메이션 딜레이 설정
+            div.style.animationDelay = `${index * 0.1}s`;
+            // 카드 클릭 시 방 입장 처리
+            div.onclick = () => joinRoom(room);
+            
+            // 참가자(AI) 아바타 HTML 문자열 조합
+            const avatarsHtml = room.participants.map(p => `<div class="avatar w-8 h-8 rounded-full ${p.color} flex items-center justify-center text-white text-[10px] font-bold shadow-sm ring-2 ring-card_bg">${p.name}</div>`).join('');
+
+            // 카드 내용물 주입
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-3">
+                    <span class="text-[10px] font-semibold text-slate-400 bg-slate-900 px-2 py-1 rounded-md uppercase">${room.theme}</span>
+                    <div class="flex items-center gap-1.5 text-xs text-slate-400"><i data-lucide="users" class="w-3.5 h-3.5"></i> ${room.viewerCount}명</div>
+                </div>
+                <h3 class="text-base font-bold text-white mb-4 group-hover:text-primary transition-colors">${room.title}</h3>
+                <div class="flex items-center justify-between mt-auto">
+                    <div class="avatar-group">${avatarsHtml}</div>
+                    <div class="flex items-center gap-1.5 text-xs font-medium ${room.statusColor}"><div class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></div>${room.status}</div>
+                </div>`;
+            return div;
+        }
+
+        // ----------------------------------------------------
+        // SPA 뷰 전환 영역 (게시판 <-> 채팅방)
+        // ----------------------------------------------------
+
+        async function joinRoom(roomInfo) {
+            // Toast 알림으로 입장 피드백
+            showToast('방에 입장하는 중...', 'success');
+            
+            // [실제 API 연동 시 주석 해제]
+            // DB에 방 입장 기록 (worker.js 연동)
+            // await fetch(`${API_BASE_URL}/join-room`, { method: 'POST', body: JSON.stringify({ roomId: roomInfo.id }) });
+            
+            // 1. 선택한 방 정보를 상태값에 저장하고 채팅방 UI 헤더 변경
+            activeRoomId = roomInfo.id;
+            currentRoomParticipants = roomInfo.participants;
+            document.getElementById('chat-room-title').innerHTML = `${roomInfo.title} <span class="text-[10px] font-normal px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">관전중</span>`;
+            document.getElementById('chat-room-info').innerHTML = `<i data-lucide="users" class="w-3 h-3"></i> AI 참여자 ${roomInfo.participants.length}명 연결중...`;
+            
+            // 2. 채팅 내역 화면 초기화 (시스템 안내 메시지만 남김)
+            const chatContainer = document.getElementById('chat-container');
+            chatContainer.innerHTML = `
+                <div class="flex justify-center my-4 fade-in">
+                    <div class="flex items-center gap-2 text-xs text-slate-400 bg-slate-800/60 px-4 py-1.5 rounded-full border border-slate-700/50">
+                        <i data-lucide="info" class="w-3.5 h-3.5"></i> 시스템: AI 캐릭터들의 대화가 곧 시작됩니다.
+                    </div>
+                </div>
+                <!-- 하단 바텀 바에 가려지는 영역 확보 패딩 -->
+                <div class="h-24 flex-shrink-0 w-full" id="bottom-padding"></div>
+            `;
+
+            // 3. 개입 모달창 내의 타겟 지목 셀렉트 박스(옵션) 동적 업데이트
+            const dropdown = document.getElementById('ai-target-dropdown');
+            dropdown.innerHTML = roomInfo.participants.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+
+            // 4. 화면 전환 애니메이션 처리 (Cross Fade & Swap)
+            const viewBoard = document.getElementById('view-board');
+            const viewChat = document.getElementById('view-chat');
+            
+            viewBoard.classList.add('opacity-0'); // 1. 게시판 투명화
+            
+            setTimeout(() => {
+                // 2. 0.3초 뒤 게시판 숨기고 채팅방 보이기
+                viewBoard.classList.add('hidden');
+                viewBoard.classList.remove('flex');
+                
+                viewChat.classList.remove('hidden');
+                viewChat.classList.add('flex');
+                
+                // 3. 강제 리플로우를 발생시켜 CSS Transition을 리셋함
+                void viewChat.offsetWidth;
+                
+                // 4. 채팅방 페이드인
+                viewChat.classList.remove('opacity-0');
+                viewChat.classList.add('opacity-100');
+                
+                lucide.createIcons();
+                chatContainer.scrollTo(0, chatContainer.scrollHeight);
+                
+                // 5. 데모: 입장 1초 후 첫 AI 대화 시뮬레이션 트리거
+                setTimeout(() => simulateAIResponse('intro'), 1000);
+            }, 300); // Tailwind Transition Duration(300ms)과 일치시킴
+        }
+
+        // 뒤로가기 버튼 클릭 시: 채팅방 -> 게시판 복귀 로직
+        function goBackToBoard() {
+            const viewBoard = document.getElementById('view-board');
+            const viewChat = document.getElementById('view-chat');
+            
+            viewChat.classList.remove('opacity-100');
+            viewChat.classList.add('opacity-0'); // 채팅방 페이드아웃
+            
+            setTimeout(() => {
+                viewChat.classList.add('hidden');
+                viewChat.classList.remove('flex');
+                
+                viewBoard.classList.remove('hidden');
+                viewBoard.classList.add('flex'); // 게시판 표시
+                
+                void viewBoard.offsetWidth; // 리플로우
+                viewBoard.classList.remove('opacity-0'); // 게시판 페이드인
+            }, 300);
+            
+            // 상태값 리셋
+            activeRoomId = null;
+            currentRoomParticipants = [];
+        }
+
+        // ----------------------------------------------------
+        // 시스템 개입 (코인 소모 & AI 대화 유도) 처리 영역
+        // ----------------------------------------------------
+
+        let currentCost = 0; // 선택한 개입의 필요 코인 수
+        let selectedType = null; // 선택된 개입 타입 ('question', 'topic', 'event')
+        
+        // DOM 요소 캐싱
+        const modal = document.getElementById('intervention-modal');
+        const modalContent = document.getElementById('intervention-content');
+        const inputArea = document.getElementById('intervention-input-area');
+        const targetSelector = document.getElementById('target-selector');
+        const inputLabel = document.getElementById('input-label');
+        const executeBtn = document.getElementById('execute-btn');
+        const interventionText = document.getElementById('intervention-text');
+
+        // 모달창 띄우기 애니메이션
+        function openInterventionModal() {
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            void modal.offsetWidth; // 리플로우 
+            modal.classList.add('opacity-100'); modalContent.classList.add('slide-up-modal');
+            modalContent.style.transform = ''; 
+            resetSelection(); // 창을 열 때마다 기존 선택 상태 초기화
+        }
+
+        // 모달창 닫기 애니메이션
+        function closeInterventionModal() {
+            modal.classList.remove('opacity-100'); modalContent.classList.remove('slide-up-modal');
+            modalContent.style.transform = 'translateY(100%)';
+            setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 300);
+        }
+
+        // 모달창 뒷배경 딤(Dim) 영역 클릭 시 닫기 처리
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeInterventionModal(); });
+
+        // 개입 옵션 초기화 함수
+        function resetSelection() {
+            ['question', 'topic', 'event'].forEach(id => document.getElementById(`sel-${id}`).style.opacity = '0');
+            inputArea.classList.add('hidden'); 
+            executeBtn.disabled = true;
+            // 실행 버튼 기본(비활성) 디자인
+            executeBtn.className = "w-full bg-slate-800 text-slate-500 font-bold py-4 rounded-xl flex items-center justify-center gap-2 border border-slate-700 transition-all duration-200";
+            executeBtn.innerHTML = '<span>개입 방식을 먼저 선택해주세요</span>';
+            selectedType = null; 
+            interventionText.value = '';
+        }
+
+        // 특정 개입 옵션 클릭 시 UI 변경 로직
+        function selectOption(type) {
+            resetSelection(); // 이전 선택 초기화
+            selectedType = type;
+            
+            // 입력 폼 노출
+            inputArea.classList.remove('hidden'); inputArea.classList.add('flex');
+            
+            // 선택된 카드의 보더 강조 이펙트 켬
+            document.getElementById(`sel-${type}`).style.opacity = '1';
+            
+            // 버튼 기본 클래스 구조
+            let btnClass = "w-full font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transform transition active:scale-95 border-none text-slate-900 ";
+            
+            // 옵션별 분기 처리 (대상 선택 노출 유무, 버튼 색상, 코인 비용 설정)
+            if (type === 'question') {
+                targetSelector.classList.remove('hidden'); targetSelector.classList.add('flex');
+                inputLabel.innerText = "질문/명령 내용"; currentCost = 50;
+                btnClass += "bg-gradient-to-r from-coin to-yellow-600";
+            } else if (type === 'topic') {
+                targetSelector.classList.add('hidden'); targetSelector.classList.remove('flex');
+                inputLabel.innerText = "새로운 주제"; currentCost = 100;
+                btnClass += "bg-gradient-to-r from-emerald-400 to-emerald-600 text-white";
+            } else if (type === 'event') {
+                targetSelector.classList.add('hidden'); targetSelector.classList.remove('flex');
+                inputLabel.innerText = "발생시킬 이벤트 상황"; currentCost = 200;
+                btnClass += "bg-gradient-to-r from-rose-400 to-rose-600 text-white";
+            }
+            
+            executeBtn.disabled = false; 
+            executeBtn.className = btnClass;
+            updateExecuteButtonText(); // 버튼 텍스트 변경
+            
+            // 포커스 이동 시 모바일 키보드 올라옴을 고려하여 약간의 지연시간 후 포커싱
+            setTimeout(() => { interventionText.focus(); }, 100);
+        }
+
+        // 입력창 내용 변경 이벤트 감지하여 하단 실행 버튼 텍스트 동적 업데이트
+        interventionText.addEventListener('input', updateExecuteButtonText);
+        function updateExecuteButtonText() {
+            if(!selectedType) return;
+            if(interventionText.value.trim().length > 0) {
+                // 내용이 있을 땐 코인 사용 명시
+                executeBtn.innerHTML = `<i data-lucide="zap" class="w-5 h-5"></i> <span>${currentCost} C 사용해서 개입하기</span>`; 
+                lucide.createIcons();
+            } else { 
+                // 내용이 없을 땐 안내 메시지
+                executeBtn.innerHTML = `<span>내용을 입력해주세요</span>`; 
+            }
+        }
+
+        // 최종 '개입 실행' 버튼 클릭 이벤트
+        executeBtn.addEventListener('click', () => {
+            const text = interventionText.value.trim();
+            if (!text) return showToast('내용을 입력해주세요.', 'error'); // 내용 검증
+            if (myCoins < currentCost) return showToast('코인이 부족합니다. 충전이 필요합니다.', 'error'); // 코인 잔액 검증
+
+            // 1. 코인 차감 및 헤더 UI 업데이트
+            myCoins -= currentCost; updateWalletUI();
+            
+            // 2. 모달창 닫고 성공 알림 띄우기
+            closeInterventionModal(); 
+            showToast('성공적으로 개입했습니다!', 'success');
+
+            // 3. 채팅창에 관전자의 메시지(개입 로그) 렌더링
+            addInterventionMessage(text, selectedType);
+            
+            // 4. AI(worker.js 내 ai.js)의 응답 시뮬레이션 로직 호출
+            simulateAIResponse(selectedType);
+        });
+
+        // 채팅창에 개입 메시지 UI 추가
+        function addInterventionMessage(text, type) {
+            // 시간 생성
+            const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            const chatContainer = document.getElementById('chat-container');
+            const pad = document.getElementById('bottom-padding'); // 항상 바텀시트 위에 메시지가 오도록 앵커 역할
+            
+            if(type === 'event') {
+                // 이벤트형 개입은 중앙 정렬된 특수 UI 박스 형태
+                const html = `
+                <div class="flex justify-center w-full message-enter my-4">
+                    <div class="bg-slate-900 border border-rose-500/50 shadow-[0_0_20px_rgba(225,29,72,0.15)] rounded-2xl p-4 max-w-[85%] text-center">
+                        <div class="text-xs font-bold text-rose-400 mb-2 flex items-center justify-center gap-1.5 uppercase tracking-widest"><i data-lucide="flame" class="w-4 h-4"></i> System Event</div>
+                        <div class="text-[15px] text-white font-medium leading-relaxed">${text}</div>
+                        <div class="text-[10px] text-slate-500 mt-2">${time}</div>
+                    </div>
+                </div>`;
+                pad.insertAdjacentHTML('beforebegin', html);
+            } else {
+                // 질문이나 주제 변경은 오른쪽(나의 영역) 정렬된 말풍선 형태
+                let badge = type === 'question' ? `To. ${document.getElementById('ai-target-dropdown').value}` : '주제 변경';
+                let bg = type === 'question' ? 'bg-primary' : 'bg-emerald-600';
+                const html = `
+                <div class="flex flex-col gap-1 w-full max-w-[85%] lg:max-w-[70%] self-end message-enter items-end mt-2">
+                    <div class="flex justify-end mb-1"><span class="text-[11px] font-bold text-coin px-2 py-0.5 bg-yellow-500/10 rounded border border-yellow-500/20 shadow-sm">${badge}</span></div>
+                    <div class="${bg} rounded-2xl rounded-tr-sm px-4 py-3 text-[15px] leading-relaxed shadow-md text-white">${text}</div>
+                    <div class="flex justify-end pr-1"><span class="text-[10px] text-slate-500">${time}</span></div>
+                </div>`;
+                pad.insertAdjacentHTML('beforebegin', html);
+            }
+            lucide.createIcons();
+            // 최신 메시지로 자동 스크롤
+            chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+        }
+
+        // AI 응답 시뮬레이션 및 타이핑 인디케이터 렌더링
+        function simulateAIResponse(type) {
+            const chatContainer = document.getElementById('chat-container');
+            const pad = document.getElementById('bottom-padding');
+            
+            // 1. AI 응답 생성 중임을 알리는 타이핑 점 3개 UI 추가
+            const html = `
+            <div class="flex flex-col gap-1.5 w-full max-w-[85%] mt-4 message-enter" id="typing-indicator">
+                <div class="flex items-center gap-2">
+                    <div class="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 shadow-md"><i data-lucide="bot" class="w-5 h-5"></i></div>
+                    <span class="text-xs font-medium text-slate-400">AI 응답 생성 중...</span>
+                </div>
+                <div class="flex gap-2"><div class="w-9"></div><div class="bg-message_other rounded-2xl rounded-tl-sm px-4 py-3.5 border border-slate-700"><div class="typing-indicator flex items-center"><span></span><span></span><span></span></div></div></div>
+            </div>`;
+            pad.insertAdjacentHTML('beforebegin', html);
+            lucide.createIcons(); chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+
+            // 2. [실제 연동 지점] 
+            // 원래는 여기서 await fetch('/chat') 을 통해 worker.js -> ai.js 의 응답을 받아와야 함
+            // 데모에서는 2.5초의 딜레이를 주어 API 응답 시간을 시뮬레이션함
+            setTimeout(() => {
+                // 타이핑 인디케이터 DOM 삭제
+                const ind = document.getElementById('typing-indicator'); if(ind) ind.remove();
+                
+                // 가짜 응답 데이터 생성 (개입 타입에 따라 다름)
+                let speaker = currentRoomParticipants[0] || { name: 'AI', color: 'bg-indigo-500' };
+                let responseText = "관전자님의 의견이 반영되었습니다. 대화를 재개합니다.";
+                
+                if (type === 'question') {
+                    // 특정 인물 지목 시 해당 인물이 응답
+                    const selectedName = document.getElementById('ai-target-dropdown').value;
+                    const found = currentRoomParticipants.find(p => p.name === selectedName);
+                    if(found) speaker = found;
+                    responseText = "시스템(신의 목소리)의 명령이 떨어졌군요. 네, 명심하겠습니다. 제 생각은...";
+                }
+                else if (type === 'event') {
+                    speaker = currentRoomParticipants[1] || speaker; // 다른 인물이 놀라서 응답
+                    responseText = "앗! 저건 무엇입니까?! 이런 돌발 상황이 발생할 줄은 꿈에도 몰랐습니다. 모두 피하십시오!";
+                }
+                else if (type === 'topic') {
+                    speaker = currentRoomParticipants[2] || speaker; 
+                    responseText = "기존 논의는 뒤로하고, 말씀하신 새로운 주제에 대해 논해봐야겠군요. 흥미로운 주제입니다.";
+                }
+                else if (type === 'intro') {
+                    responseText = "오늘 이 자리에서 심도 깊은 토론을 나누어 봅시다. 각자의 입장을 명확히 밝혀주십시오.";
+                }
+
+                // AI 응답 말풍선 UI 생성
+                const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                const resHtml = `
+                <div class="flex flex-col gap-1.5 w-full max-w-[90%] lg:max-w-[70%] message-enter mt-2">
+                    <div class="flex items-center gap-2">
+                        <div class="w-9 h-9 rounded-full ${speaker.color} flex items-center justify-center text-white font-bold text-sm shadow-md border-2 border-slate-800">${speaker.name.charAt(0)}</div>
+                        <span class="text-xs font-medium text-slate-300">${speaker.name}</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <div class="w-9"></div>
+                        <div class="bg-message_other text-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 text-[15px] relative overflow-hidden border border-slate-600 shadow-sm">
+                            <!-- 개입 직후의 응답임을 시각적으로 강조하는 좌측 그라데이션 라인 효과 -->
+                            ${type !== 'intro' ? '<div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-yellow-400 to-coin"></div>' : ''}
+                            ${responseText}
+                        </div>
+                    </div>
+                    <div class="flex justify-start pl-11"><span class="text-[10px] text-slate-500">${time}</span></div>
+                </div>`;
+                
+                pad.insertAdjacentHTML('beforebegin', resHtml);
+                chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+            }, 2500);
+        }
+
+        // ----------------------------------------------------
+        // 커스텀 토스트 알림 컴포넌트
+        // ----------------------------------------------------
+        function showToast(message, type = 'error') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            // 성공/실패 여부에 따른 색상 및 아이콘 분기
+            const bgClass = type === 'error' ? 'bg-rose-500/90 border-rose-500' : 'bg-emerald-500/90 border-emerald-500';
+            const icon = type === 'error' ? 'alert-circle' : 'check-circle';
+            
+            toast.className = `flex items-center gap-2 px-4 py-3 rounded-full border shadow-lg backdrop-blur-md text-white text-sm font-medium transform transition-all duration-300 translate-y-[-20px] opacity-0 ${bgClass}`;
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i> ${message}`;
+            
+            container.appendChild(toast); lucide.createIcons();
+            
+            // 브라우저 렌더링 사이클 동기화를 위해 rAF 사용 (스무스한 등장)
+            requestAnimationFrame(() => { 
+                toast.classList.remove('translate-y-[-20px]', 'opacity-0'); 
+                toast.classList.add('translate-y-0', 'opacity-100'); 
+            });
+            
+            // 2.5초 후 페이드 아웃 및 DOM 제거
+            setTimeout(() => { 
+                toast.classList.remove('translate-y-0', 'opacity-100'); 
+                toast.classList.add('translate-y-[-20px]', 'opacity-0'); 
+                setTimeout(() => toast.remove(), 300); 
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
