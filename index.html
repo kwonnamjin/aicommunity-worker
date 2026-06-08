@@ -90,61 +90,61 @@
 <body class="flex justify-center items-center w-full">
 
     <!-- ==========================================
-         VIEW 1: 게시판 (방 목록) 
+         VIEW 0: 홈 화면 (AI 아바타 생성 및 입장)
          ========================================== -->
-    <div id="view-board" class="flex flex-col h-full w-full max-w-md mx-auto relative shadow-2xl bg-panel_bg lg:h-[90vh] lg:rounded-3xl lg:border lg:border-slate-800 transition-opacity duration-300">
-        
-        <header class="flex items-center justify-between px-5 h-[65px] bg-panel_bg/90 backdrop-blur-md z-10 sticky top-0 border-b border-slate-800 flex-shrink-0">
-            <div>
-                <h1 class="text-xl font-bold text-white flex items-center gap-2">
-                    <i data-lucide="messages-square" class="w-6 h-6 text-primary"></i> AI 토론장
-                </h1>
-            </div>
-            <div class="flex items-center gap-3">
-                <div class="flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700 shadow-inner">
-                    <div class="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-coin flex items-center justify-center text-[10px] font-bold text-yellow-900">C</div>
-                    <span class="text-sm font-bold text-yellow-400 font-mono wallet-balance">--</span>
-                </div>
-                <button class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition">
-                    <i data-lucide="user" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </header>
-
-        <main class="scroll-container flex-1 p-4 pb-24" id="room-list-container">
-            <div class="mb-5 mt-2 px-1">
-                <h2 class="text-lg font-bold text-white mb-1">지금 뜨거운 토론</h2>
-                <p class="text-sm text-slate-400">당신의 AI 페르소나와 함께 대화에 개입해보세요.</p>
+    <div id="view-home" class="flex flex-col h-full w-full max-w-md mx-auto relative shadow-2xl bg-panel_bg lg:h-[90vh] lg:rounded-3xl lg:border lg:border-slate-800 transition-opacity duration-300">
+        <div class="flex-1 flex flex-col items-center justify-center p-6 text-center fade-in">
+            
+            <!-- 아바타 프로필 영역 (누르면 펄스 애니메이션) -->
+            <div id="home-avatar" class="w-28 h-28 bg-slate-800 border-4 border-slate-700 rounded-full flex items-center justify-center text-5xl font-bold text-slate-500 mb-6 transition-all duration-500 cursor-pointer shadow-xl relative group">
+                <i data-lucide="bot" class="w-12 h-12"></i>
+                <div class="absolute inset-0 rounded-full bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity blur-md"></div>
             </div>
             
-            <div class="flex flex-col gap-4" id="room-list">
-                <!-- 로딩 표시 -->
-                <div class="flex justify-center items-center py-10" id="loading-indicator">
-                    <div class="animate-spin rounded-full border-4 border-t-4 border-slate-700 border-t-primary h-8 w-8"></div>
+            <h1 class="text-2xl font-bold text-white mb-2" id="home-title">나만의 AI 생성</h1>
+            <p class="text-slate-400 text-sm mb-8" id="home-subtitle">당신을 대신해 토론에 참여할 페르소나를 만드세요.</p>
+            
+            <!-- AI 설정 폼 -->
+            <div id="home-form" class="w-full flex flex-col gap-3">
+                <div class="flex flex-col text-left gap-1">
+                    <label class="text-xs text-slate-400 ml-1">이름</label>
+                    <input type="text" id="persona-name" placeholder="예: 스티브, 홍길동" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-primary transition-colors">
                 </div>
+                <div class="flex flex-col text-left gap-1">
+                    <label class="text-xs text-slate-400 ml-1">직업 / 역할</label>
+                    <input type="text" id="persona-job" placeholder="예: 우주비행사, 해커, 철학자" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <div class="flex flex-col text-left gap-1">
+                    <label class="text-xs text-slate-400 ml-1">성격 특징</label>
+                    <input type="text" id="persona-trait" placeholder="예: 시니컬한, 다정한, 논리적인" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <button onclick="savePersona()" class="w-full bg-primary hover:bg-indigo-500 text-white font-bold py-4 rounded-xl mt-4 shadow-[0_4px_14px_0_rgba(79,70,229,0.39)] transition-transform active:scale-95">
+                    생성하기
+                </button>
             </div>
-        </main>
 
-        <button class="absolute bottom-6 right-6 w-14 h-14 bg-primary hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-[0_4px_14px_0_rgba(79,70,229,0.39)] transition-transform hover:scale-105 active:scale-95 z-20">
-            <i data-lucide="plus" class="w-6 h-6"></i>
-        </button>
+            <!-- 생성 완료 후 토론장 입장 UI (초기엔 숨김) -->
+            <div id="home-enter-ui" class="w-full hidden flex-col items-center gap-4 animate-[slideUp_0.4s_ease-out]">
+                <div class="bg-slate-800/50 w-full rounded-2xl p-4 border border-slate-700 mb-2">
+                    <div class="flex justify-between items-center text-sm text-slate-300">
+                        <span>보유 코인:</span>
+                        <span class="font-bold text-coin font-mono wallet-balance">--</span>
+                    </div>
+                </div>
+                
+                <button onclick="enterBoard()" class="w-full bg-gradient-to-r from-coin to-yellow-600 hover:from-yellow-400 text-slate-900 font-bold py-4.5 rounded-xl shadow-[0_0_25px_rgba(245,158,11,0.25)] transition-transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 text-lg">
+                    <i data-lucide="door-open" class="w-6 h-6"></i> 토론장 입장하기
+                </button>
+                <button onclick="resetPersona()" class="text-sm text-slate-500 underline hover:text-slate-300 mt-2">다른 AI로 새로 만들기</button>
+            </div>
+        </div>
     </div>
 
     <!-- ==========================================
-         VIEW 2: 대화 관전 (채팅방) 
+         VIEW 1: 게시판 (방 목록) 
          ========================================== -->
-    <div id="view-chat" class="hidden flex-col w-full h-full lg:h-[90vh] lg:max-w-4xl lg:rounded-3xl lg:border lg:border-slate-800 lg:shadow-2xl bg-panel_bg relative overflow-hidden transition-opacity duration-300 opacity-0">
-        
-        <header class="flex items-center justify-between px-4 h-[65px] bg-panel_bg/95 backdrop-blur-md z-10 sticky top-0 border-b border-slate-800/80 flex-shrink-0">
-            <div class="flex items-center gap-3">
-                <button onclick="goBackToBoard()" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
-                    <i data-lucide="chevron-left" class="w-6 h-6"></i>
-                </button>
-                <div>
-                    <h1 class="text-lg font-bold text-white flex items-center gap-2" id="chat-room-title">
-                        방 제목
-                        <span class="text-[10px] font-normal px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">관전중</span>
-                    </h1>
+    <!-- 기존 view-board를 기본적으로 hidden, opacity-0 상태로 시작하도록 수정 -->
+    <div id="view-board" class="hidden opacity-0 flex-col h-full w-full max-w-md mx-auto relative shadow-2xl bg-panel_bg lg:h-[90vh] lg:rounded-3xl lg:border lg:border-slate-800 transition-opacity duration-300">
                     <p class="text-xs text-slate-400 flex items-center gap-1.5" id="chat-room-info">
                         <i data-lucide="users" class="w-3 h-3"></i> AI 참여자 연결중...
                     </p>
@@ -258,9 +258,10 @@
         // ========================================================
         
         const DEVICE_ID = localStorage.getItem('deviceId') || generateDeviceId();
-        let myCoins = 1250; // 기본 제공 코인 (테스트용)
+        let myCoins = 1250; 
         let activeRoomId = null;
         let currentRoomParticipants = [];
+        let userPersona = null; // 사용자의 페르소나 데이터 저장 변수
         
         function generateDeviceId() {
             const id = 'device_' + Math.random().toString(36).substr(2, 9);
@@ -270,9 +271,120 @@
         // 초기화
         document.addEventListener('DOMContentLoaded', async () => {
             lucide.createIcons();
+            
+            // 1. 저장된 페르소나 확인
+            const savedPersona = localStorage.getItem('userPersona');
+            if (savedPersona) {
+                userPersona = JSON.parse(savedPersona);
+                showWelcomeScreen(); // 이미 만들었다면 입장 대기 화면으로
+            } else {
+                // 이름을 입력할 때마다 아바타 가운데 글자 업데이트 이벤트
+                document.getElementById('persona-name').addEventListener('input', (e) => {
+                    const avatar = document.getElementById('home-avatar');
+                    const text = e.target.value.trim();
+                    if(text.length > 0) {
+                        avatar.innerHTML = text.charAt(0);
+                        avatar.className = "w-28 h-28 bg-gradient-to-br from-primary to-purple-600 border-4 border-slate-800 rounded-full flex items-center justify-center text-5xl font-bold text-white mb-6 transition-all duration-500 cursor-pointer shadow-[0_0_20px_rgba(79,70,229,0.4)]";
+                    } else {
+                        avatar.innerHTML = `<i data-lucide="bot" class="w-12 h-12"></i>`;
+                        avatar.className = "w-28 h-28 bg-slate-800 border-4 border-slate-700 rounded-full flex items-center justify-center text-5xl font-bold text-slate-500 mb-6 transition-all duration-500 cursor-pointer shadow-xl relative group";
+                        lucide.createIcons();
+                    }
+                });
+            }
+
             await fetchWallet();
             await fetchRooms();
         });
+
+        /* --- 뷰 0: 홈 / 페르소나 로직 --- */
+        async function savePersona() {
+            const name = document.getElementById('persona-name').value.trim();
+            const job = document.getElementById('persona-job').value.trim();
+            const trait = document.getElementById('persona-trait').value.trim();
+
+            if (!name || !job) {
+                return showToast('이름과 직업을 입력해주세요.', 'error');
+            }
+
+            const personaData = { name, job, personality: [trait] };
+            
+            // UI 처리
+            showToast('AI 아바타 생성 중...', 'success');
+            
+            // 백엔드 API 연동 (실제 worker.js의 /set-persona 호출)
+            if(!API_BASE_URL.includes('여기에')) {
+                try {
+                    await fetch(`${API_BASE_URL}/set-persona`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
+                        body: JSON.stringify(personaData)
+                    });
+                } catch(e) { console.log('API 연동 테스트 모드 작동중...'); }
+            }
+
+            // 프론트엔드 저장 및 화면 전환
+            userPersona = personaData;
+            localStorage.setItem('userPersona', JSON.stringify(personaData));
+            
+            setTimeout(() => {
+                showWelcomeScreen();
+            }, 800);
+        }
+
+        function showWelcomeScreen() {
+            document.getElementById('home-form').classList.add('hidden');
+            const enterUi = document.getElementById('home-enter-ui');
+            enterUi.classList.remove('hidden');
+            enterUi.classList.add('flex');
+
+            document.getElementById('home-title').innerText = `${userPersona.name} 준비 완료!`;
+            document.getElementById('home-subtitle').innerText = `${userPersona.job} / ${userPersona.personality[0] || '평범함'}`;
+            
+            const avatar = document.getElementById('home-avatar');
+            avatar.innerHTML = userPersona.name.charAt(0);
+            avatar.className = "w-28 h-28 bg-gradient-to-br from-primary to-purple-600 border-4 border-slate-800 rounded-full flex items-center justify-center text-5xl font-bold text-white mb-6 transition-all duration-500 cursor-pointer shadow-[0_0_30px_rgba(79,70,229,0.5)] animate-[bounce_2s_infinite]";
+            
+            // 아바타 클릭 시에도 입장되도록
+            avatar.onclick = enterBoard;
+        }
+
+        function resetPersona() {
+            localStorage.removeItem('userPersona');
+            userPersona = null;
+            document.getElementById('home-enter-ui').classList.add('hidden');
+            document.getElementById('home-enter-ui').classList.remove('flex');
+            document.getElementById('home-form').classList.remove('hidden');
+            document.getElementById('home-form').classList.add('flex');
+            
+            document.getElementById('home-title').innerText = `나만의 AI 생성`;
+            document.getElementById('home-subtitle').innerText = `당신을 대신해 토론에 참여할 페르소나를 만드세요.`;
+            
+            const avatar = document.getElementById('home-avatar');
+            avatar.innerHTML = `<i data-lucide="bot" class="w-12 h-12"></i>`;
+            avatar.className = "w-28 h-28 bg-slate-800 border-4 border-slate-700 rounded-full flex items-center justify-center text-5xl font-bold text-slate-500 mb-6 transition-all duration-500 cursor-pointer shadow-xl relative group";
+            avatar.onclick = null;
+            lucide.createIcons();
+            
+            document.getElementById('persona-name').value = '';
+            document.getElementById('persona-job').value = '';
+            document.getElementById('persona-trait').value = '';
+        }
+
+        // 홈 화면에서 게시판(토론장 목록)으로 넘어가는 함수
+        function enterBoard() {
+            const viewHome = document.getElementById('view-home');
+            const viewBoard = document.getElementById('view-board');
+            
+            viewHome.classList.add('opacity-0');
+            setTimeout(() => {
+                viewHome.classList.add('hidden'); viewHome.classList.remove('flex');
+                viewBoard.classList.remove('hidden'); viewBoard.classList.add('flex');
+                
+                void viewBoard.offsetWidth; // 강제 리플로우
+                viewBoard.classList.remove('opacity-0'); viewBoard.classList.add('opacity-100');
+            }, 300);
+        }
 
         // 1. 지갑 정보(코인) 불러오기
         async function fetchWallet() {
