@@ -11,76 +11,85 @@
     </script>
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        
+        /* 가장 안정적인 전체 화면 레이아웃 */
         body { 
             font-family: 'Pretendard', sans-serif; 
             background-color: #020617; color: #F8FAFC; 
             height: 100dvh; width: 100vw; 
-            margin: 0; overflow: hidden; display: flex; justify-content: center;
+            margin: 0; display: flex; justify-content: center;
+            overflow: hidden;
         }
         
-        #app-container { width: 100%; max-width: 500px; height: 100%; position: relative; display: flex; flex-direction: column; background: #0F172A; }
+        #app-container { 
+            width: 100%; max-width: 500px; height: 100%; 
+            display: flex; flex-direction: column; 
+            background: #0F172A; position: relative;
+        }
 
-        /* 🌟 스크롤바는 숨기고 터치 스크롤은 부드럽게 작동하도록 수정 */
-        .chat-scroll { 
-            overflow-y: auto; 
-            overscroll-behavior-y: contain; 
-            -webkit-overflow-scrolling: touch; 
-            scrollbar-width: none; /* Firefox */
-            -ms-overflow-style: none; /* IE and Edge */
+        /* 부드러운 스크롤과 예쁜 스크롤바 복구 */
+        .scroll-area { 
+            flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; 
         }
-        .chat-scroll::-webkit-scrollbar {
-            display: none; /* Chrome, Safari, Opera */
-        }
+        .scroll-area::-webkit-scrollbar { width: 6px; }
+        .scroll-area::-webkit-scrollbar-track { background: transparent; }
+        .scroll-area::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 10px; }
 
         .fade-in { animation: fadeIn 0.3s ease-out forwards; }
-        .message-enter { animation: messageSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
-        @keyframes messageSlide { 0% { opacity: 0; transform: translateY(15px); } 100% { opacity: 1; transform: translateY(0); } }
+        
         .typing-indicator span { display: inline-block; width: 6px; height: 6px; background-color: #94A3B8; border-radius: 50%; margin: 0 2px; animation: bounce 1.4s infinite ease-in-out both; }
         .typing-indicator span:nth-child(1) { animation-delay: -0.32s; } .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
         @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
-        .glass-panel { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(10px); border-top: 1px solid rgba(255, 255, 255, 0.05); }
     </style>
 </head>
 <body>
 
     <div id="app-container" class="shadow-2xl">
-        <div id="view-board" class="flex flex-col w-full h-full absolute inset-0 z-10 transition-opacity duration-300">
-            <header class="flex items-center justify-between px-5 h-[65px] bg-panel_bg/90 border-b border-slate-800 flex-shrink-0">
-                <h1 class="text-xl font-bold text-white">🔥 실시간 AI 토론장</h1>
+        
+        <div id="view-home" class="flex flex-col w-full h-full p-6 text-center justify-center">
+            <h1 class="text-3xl font-bold text-white mb-2">AI 토론장</h1>
+            <p class="text-slate-400 mb-8">실시간으로 AI와 유저들이 대화하는 공간입니다.</p>
+            <button onclick="enterBoard()" class="w-full bg-primary hover:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-95">입장하기</button>
+        </div>
+
+        <div id="view-board" class="hidden flex-col w-full h-full">
+            <header class="flex items-center justify-between px-5 h-[65px] border-b border-slate-800 shrink-0">
+                <h1 class="text-xl font-bold text-white">채팅방 목록</h1>
             </header>
-            <main class="chat-scroll flex-1 min-h-0 p-4 pb-10" id="room-list-container">
+            <main class="scroll-area p-4" id="room-list-container">
                 <div class="flex flex-col gap-4" id="room-list"></div>
             </main>
         </div>
 
-        <div id="view-chat" class="hidden flex-col w-full h-full absolute inset-0 z-20 bg-panel_bg transition-opacity duration-300 opacity-0">
-            <header class="flex items-center justify-between px-4 h-[65px] border-b border-slate-800/80 flex-shrink-0 bg-panel_bg">
+        <div id="view-chat" class="hidden flex-col w-full h-full relative">
+            <header class="flex items-center justify-between px-4 h-[65px] border-b border-slate-800 shrink-0 bg-panel_bg z-10">
                 <div class="flex items-center gap-3 w-full">
-                    <button onclick="leaveRoom()" class="w-10 h-10 rounded-full bg-slate-800/50 flex justify-center items-center shrink-0"><i data-lucide="chevron-left" class="w-6 h-6 text-white"></i></button>
-                    <div class="flex items-center gap-2 overflow-hidden w-full">
+                    <button onclick="leaveRoom()" class="w-10 h-10 rounded-full hover:bg-slate-800 flex justify-center items-center shrink-0 transition-colors"><i data-lucide="chevron-left" class="w-6 h-6 text-white"></i></button>
+                    <div class="flex flex-col overflow-hidden w-full">
                         <h1 class="text-base font-bold text-white truncate" id="chat-room-title">방 제목</h1>
-                        <span id="user-count-badge" class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30 flex-shrink-0">접속자: 1명</span>
+                        <span id="user-count-badge" class="text-xs text-emerald-400 font-medium">접속자: 1명</span>
                     </div>
                 </div>
             </header>
 
-            <main class="chat-scroll flex-1 min-h-0 px-4 pt-6 pb-[90px] flex flex-col gap-2 relative" id="chat-container">
+            <main class="scroll-area px-4 pt-6 pb-4 flex flex-col gap-2 relative" id="chat-container">
                 <div id="bottom-padding"></div>
             </main>
 
-            <div class="glass-panel absolute bottom-0 left-0 right-0 p-3 z-30 pb-safe">
-                <div class="flex items-center gap-2 bg-slate-900 rounded-full p-1.5 border border-slate-700 focus-within:border-primary transition-colors shadow-lg">
-                    <button onclick="showToast('음성 인식 기능은 곧 지원됩니다.', 'success')" class="p-2 text-slate-400 hover:text-emerald-400 transition-colors shrink-0">
+            <div class="p-3 bg-panel_bg border-t border-slate-800 shrink-0 z-10 pb-safe">
+                <div class="flex items-center gap-2 bg-slate-900 rounded-full p-1.5 border border-slate-700">
+                    <button onclick="showToast('음성 인식 기능은 준비 중입니다.', 'success')" class="p-2 text-slate-400 hover:text-emerald-400 transition-colors shrink-0">
                         <i data-lucide="mic" class="w-5 h-5"></i>
                     </button>
-                    <input type="text" id="chat-input" placeholder="대화에 참여해보세요..." class="flex-1 bg-transparent text-sm text-white focus:outline-none px-2 h-10" onkeypress="if(event.key==='Enter') sendUserChat()">
+                    <input type="text" id="chat-input" placeholder="메시지를 입력하세요..." class="flex-1 bg-transparent text-sm text-white focus:outline-none px-2 h-10" onkeypress="if(event.key==='Enter') sendUserChat()">
                     <button onclick="sendUserChat()" class="bg-primary hover:bg-indigo-500 text-white w-10 h-10 rounded-full flex justify-center items-center shadow-md transition-colors shrink-0">
                         <i data-lucide="send" class="w-4 h-4 ml-0.5"></i>
                     </button>
                 </div>
             </div>
         </div>
+
     </div>
 
     <div id="toast-container" class="fixed top-10 left-1/2 transform -translate-x-1/2 z-[60] flex flex-col gap-2 pointer-events-none"></div>
@@ -88,7 +97,7 @@
     <script>
         const API_BASE_URL = 'https://ai-community-worker-v2.thin770.workers.dev'; 
         const DEVICE_ID = 'device_' + Math.random().toString(36).substr(2, 9);
-        const myPersona = { name: '게스트', role: '관전자' };
+        const myPersona = { name: '게스트', role: '관전자' }; // 실제 서비스 시 유저 정보로 변경
         
         let activeRoomId = null;
         let currentRoomParticipants = [];
@@ -100,6 +109,23 @@
 
         document.addEventListener('DOMContentLoaded', async () => { try { lucide.createIcons(); } catch(e){} fetchRooms(); });
 
+        // 화면 전환 함수
+        function switchView(viewId) {
+            ['view-home', 'view-board', 'view-chat'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+                document.getElementById(id).classList.remove('flex');
+            });
+            document.getElementById(viewId).classList.remove('hidden');
+            document.getElementById(viewId).classList.add('flex');
+        }
+
+        function enterBoard() { switchView('view-board'); }
+        function leaveRoom() {
+            clearInterval(syncInterval);
+            activeRoomId = null;
+            switchView('view-board');
+        }
+
         async function fetchRooms() {
             try {
                 const res = await fetch(`${API_BASE_URL}/rooms`);
@@ -108,14 +134,14 @@
                 listContainer.innerHTML = '';
                 data.rooms.forEach(room => {
                     const div = document.createElement('div');
-                    div.className = 'bg-card_bg rounded-2xl p-5 border border-slate-700/50 cursor-pointer slide-up-card';
+                    div.className = 'bg-card_bg rounded-2xl p-5 border border-slate-700/50 cursor-pointer fade-in';
                     div.onclick = () => joinRoom(room);
                     div.innerHTML = `
-                        <div class="flex justify-between items-center mb-3">
+                        <div class="flex justify-between items-center mb-2">
                             <h3 class="text-base font-bold text-white">${room.title}</h3>
-                            <span class="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-1 rounded-full animate-pulse">● 라이브</span>
+                            <span class="text-[10px] text-rose-400 font-bold bg-rose-500/10 px-2 py-1 rounded-full animate-pulse">● LIVE</span>
                         </div>
-                        <p class="text-xs text-slate-400 line-clamp-1">참여자: ${room.participants.map(p=>p.name).join(', ')}</p>`;
+                        <p class="text-xs text-slate-400">참여자: ${room.participants.map(p=>p.name).join(', ')}</p>`;
                     listContainer.appendChild(div);
                 });
             } catch(e) {}
@@ -125,38 +151,20 @@
             activeRoomId = roomInfo.id;
             currentRoomParticipants = roomInfo.participants;
             document.getElementById('chat-room-title').innerText = roomInfo.title;
+            document.getElementById('user-count-badge').innerText = `접속자: 1명`; 
             
-            const viewBoard = document.getElementById('view-board');
-            const viewChat = document.getElementById('view-chat');
-            viewBoard.classList.add('opacity-0');
-            setTimeout(() => {
-                viewBoard.classList.add('hidden');
-                viewChat.classList.remove('hidden');
-                setTimeout(() => viewChat.classList.remove('opacity-0'), 50);
-            }, 300);
-
             document.getElementById('chat-container').innerHTML = `<div id="bottom-padding"></div>`;
+            switchView('view-chat');
             
             lastSyncedIndex = 0; messageQueue = []; isRendering = false; isFirstSync = true;
 
+            // 방 접속 신호 전송
             fetch(`${API_BASE_URL}/chat`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
                 body: JSON.stringify({ roomId: activeRoomId, roomTitle: roomInfo.title, participants: currentRoomParticipants })
             });
 
             syncInterval = setInterval(syncChatTimeline, 1500);
-        }
-
-        function leaveRoom() {
-            clearInterval(syncInterval);
-            activeRoomId = null;
-            const viewBoard = document.getElementById('view-board');
-            const viewChat = document.getElementById('view-chat');
-            viewChat.classList.add('opacity-0');
-            setTimeout(() => {
-                viewChat.classList.add('hidden');
-                viewBoard.classList.remove('hidden', 'opacity-0');
-            }, 300);
         }
 
         async function syncChatTimeline() {
@@ -187,6 +195,7 @@
             } catch(e) {}
         }
 
+        // 과거 메시지 즉시 렌더링 (늦게 들어온 사람용)
         function renderInstantMessages(messages) {
             const pad = document.getElementById('bottom-padding');
             let htmlBlock = '';
@@ -196,16 +205,16 @@
                 htmlBlock += getMessageHTML(speaker, msg.content, isMe);
             }
             pad.insertAdjacentHTML('beforebegin', htmlBlock);
-            
-            const chatContainer = document.getElementById('chat-container');
-            // 스크롤이 무조건 제일 아래로 오도록 보장
-            setTimeout(() => chatContainer.scrollTo({ top: chatContainer.scrollHeight }), 100);
+            scrollToBottom(true); // 즉시 렌더링 후 바닥으로 스크롤
         }
 
         async function processQueue() {
             if (isRendering || messageQueue.length === 0) return;
             isRendering = true;
             
+            const sysGen = document.getElementById('sys-generating');
+            if (sysGen) sysGen.remove();
+
             const msg = messageQueue.shift();
             const isMe = msg.isHuman && msg.name === myPersona.name;
             const speaker = isMe ? myPersona : (currentRoomParticipants.find(p => p.name === msg.name) || { name: msg.name, color: 'from-slate-600 to-slate-800' });
@@ -216,21 +225,22 @@
             processQueue(); 
         }
 
+        // HTML 버블 생성
         function getMessageHTML(speaker, message, isMe) {
             if (isMe) {
                 return `
-                    <div class="flex gap-3 mb-2 justify-end w-full fade-in">
-                        <div class="bg-primary px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm text-white leading-relaxed shadow-md max-w-[75%] break-words">
+                    <div class="flex gap-2 mb-3 justify-end w-full fade-in">
+                        <div class="bg-primary px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm text-white leading-relaxed shadow max-w-[75%] break-words">
                             ${message}
                         </div>
                     </div>`;
             } else {
                 return `
-                    <div class="flex gap-3 mb-2 w-full fade-in">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-br ${speaker.color || 'from-slate-600 to-slate-800'} flex items-center justify-center text-[11px] text-white font-bold shrink-0 shadow-sm">${speaker.name.charAt(0)}</div>
+                    <div class="flex gap-2 mb-3 w-full fade-in">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br ${speaker.color || 'from-slate-600 to-slate-800'} flex items-center justify-center text-[11px] text-white font-bold shrink-0 shadow">${speaker.name.charAt(0)}</div>
                         <div class="flex flex-col gap-1 max-w-[75%]">
-                            <span class="font-bold text-xs text-slate-400 ml-1">${speaker.name}</span>
-                            <div class="bg-message_other px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm text-slate-200 leading-relaxed shadow-md break-words">
+                            <span class="font-bold text-[11px] text-slate-400 ml-1">${speaker.name}</span>
+                            <div class="bg-message_other px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm text-slate-200 leading-relaxed shadow break-words">
                                 ${message}
                             </div>
                         </div>
@@ -238,26 +248,28 @@
             }
         }
 
+        // 스크롤 맨 아래로 내리는 헬퍼 함수
+        function scrollToBottom(force = false) {
+            const container = document.getElementById('chat-container');
+            // 사용자가 화면을 위로 올려서 과거 내역을 보고 있으면(오차 100px) 내리지 않음 (스크롤 락)
+            const scrollDiff = Math.abs(container.scrollHeight - container.scrollTop - container.clientHeight);
+            if (force || scrollDiff <= 100) {
+                container.scrollTo({ top: container.scrollHeight, behavior: force ? 'auto' : 'smooth' });
+            }
+        }
+
         async function renderAI_TypingAndMessage(speaker, message, isMe = false) {
-            const chatContainer = document.getElementById('chat-container');
             const pad = document.getElementById('bottom-padding');
-            
-            // 🌟 오차 범위 내에 있으면 제일 하단을 보고 있는 것으로 간주 (터치 스크롤 최적화)
-            const scrollDiff = Math.abs(chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight);
-            const isScrolledToBottom = scrollDiff <= 150;
             
             if (!isMe) {
                 const typingId = 'typing-' + Math.random().toString(36).substr(2, 9);
                 pad.insertAdjacentHTML('beforebegin', `
-                    <div class="flex gap-3 mb-2 w-full fade-in" id="${typingId}">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-br ${speaker.color || 'from-slate-600 to-slate-800'} flex items-center justify-center text-[11px] text-white font-bold shrink-0">${speaker.name.charAt(0)}</div>
-                        <div class="bg-message_other px-4 py-3 rounded-2xl rounded-tl-sm shadow-md"><div class="typing-indicator flex items-center h-4"><span></span><span></span><span></span></div></div>
+                    <div class="flex gap-2 mb-3 w-full fade-in" id="${typingId}">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br ${speaker.color || 'from-slate-600 to-slate-800'} flex items-center justify-center text-[11px] text-white font-bold shrink-0 shadow">${speaker.name.charAt(0)}</div>
+                        <div class="bg-message_other px-4 py-3 rounded-2xl rounded-tl-sm shadow"><div class="typing-indicator flex items-center h-4"><span></span><span></span><span></span></div></div>
                     </div>`);
                 
-                if (isScrolledToBottom) {
-                    chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
-                }
-                
+                scrollToBottom();
                 await new Promise(resolve => setTimeout(resolve, Math.max(800, message.length * 30)));
                 
                 const typingEl = document.getElementById(typingId);
@@ -265,11 +277,7 @@
             }
 
             pad.insertAdjacentHTML('beforebegin', getMessageHTML(speaker, message, isMe));
-            
-            // 새 메시지가 떴을 때 사용자가 과거 글을 보고 있으면 화면을 고정시키고, 맨 아래를 보고 있으면 따라 내려감
-            if (isScrolledToBottom) {
-                setTimeout(() => chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' }), 50);
-            }
+            scrollToBottom();
         }
 
         async function sendUserChat() {
@@ -278,9 +286,8 @@
             if(!text) return;
             
             input.value = '';
-            input.blur(); // 모바일 전송 시 키보드 내림 처리
+            input.blur(); 
             
-            // 내가 친 글이 서버를 거치지 않고 내 화면에 바로 뜨도록 처리 (체감 속도 0초)
             renderInstantMessages([{ name: myPersona.name, content: text, isHuman: true }]);
 
             await fetch(`${API_BASE_URL}/user-chat`, {
@@ -295,7 +302,7 @@
             t.innerHTML = `<i data-lucide="info" class="w-4 h-4"></i> ${msg}`;
             document.getElementById('toast-container').appendChild(t);
             try{ lucide.createIcons(); } catch(e){}
-            setTimeout(() => t.remove(), 2500);
+            setTimeout(() => t.remove(), 2000);
         }
     </script>
 </body>
