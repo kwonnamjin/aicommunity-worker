@@ -589,73 +589,64 @@
             }, 300);
         }
 
-        async function startAutoConversation(roomInfo) {
+async function startAutoConversation(roomInfo) {
             const chatContainer = document.getElementById('chat-container');
             const pad = document.getElementById('bottom-padding');
 
             globalChatHistory = []; // 방 입장 시 대화 기록 초기화
 
+            // 시스템 알림 메시지 표시
             const sysHtml = `
                 <div class="flex justify-center my-4 fade-in">
                     <div class="flex items-center gap-2 text-xs text-slate-400 bg-slate-800/60 px-4 py-1.5 rounded-full border border-slate-700/50">
                         <i data-lucide="info" class="w-3.5 h-3.5"></i> 
-                        ${userPersona ? (userPersona.name||'관전자') : '관전자'}님이 입장했습니다. AI들이 대화를 이어갑니다...
+                        ${userPersona ? (userPersona.name||'관전자') : '관전자'}님이 입장했습니다. AI들의 토론 대본을 생성 중입니다...
                     </div>
                 </div>`;
             pad.insertAdjacentHTML('beforebegin', sysHtml);
             try { lucide.createIcons(); } catch(e){}
             
-            await sleep(1500);
+            try {
+                // 단일 API 호출로 대본 전체를 받아옴
+                const aiRes = await fetch(`${API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
+                    body: JSON.stringify({ 
+                        roomTitle: roomInfo.title,
+                        participants: roomInfo.participants,
+                        history: globalChatHistory 
+                    })
+                });
 
-let cycleCount = 0;
-            // 각 참가자가 한 번씩 순서대로 발언하는 사이클을 3바퀴(총 9번) 정도 돌립니다.
-            while (cycleCount < 3 && activeRoomId === roomInfo.id) {
-                for (let i = 0; i < currentRoomParticipants.length; i++) {
-                    if (activeRoomId !== roomInfo.id) break; 
-                    
-                    const speaker = currentRoomParticipants[i];
-                    
-                    // 첫 마디는 토론의 시작을 알리고, 이후부터는 자연스러운 티키타카를 유도합니다.
-                    const promptMsg = (cycleCount === 0 && i === 0) 
-                        ? `우리는 지금 '${roomInfo.title}'에 대해 토론 중이야. 너의 역할(${speaker.role})에 완벽히 몰입해서 토론을 시작하는 첫 마디를 2~3문장으로 강렬하게 던져봐.`
-                        : `앞선 사람들의 의견을 보고, 너의 역할(${speaker.role})에 몰입해서 2~3문장으로 반박하거나 동조해. 절대 AI인 척하지 마.`;
+                if (!aiRes.ok) throw new Error("서버 응답 오류");
+                
+                const data = await aiRes.json();
+                const script = data.script;
 
-                    try {
-                        const aiRes = await fetch(`${API_BASE_URL}/chat`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
-                            body: JSON.stringify({ 
-                                message: promptMsg,
-                                history: globalChatHistory,
-                                speakerProfile: {
-                                    name: speaker.name,
-                                    job: speaker.role || '참여자',
-                                    // 하드코딩 제거: 서버에서 받은 고유 성격과 스탯을 그대로 넘김
-                                    personality: speaker.personality || ['평범함'], 
-                                    stats: speaker.stats || { villain_score: 50, wisdom: 50 }
-                                }
-                            })
-                        });
-
-                        if (aiRes.ok) {
-                            const data = await aiRes.json();
-                            if (data.response) {
-                                await renderAI_TypingAndMessage(speaker, data.response);
-                                
-                                // 다음 화자가 이전 문맥을 알 수 있도록 히스토리에 누적
-                                globalChatHistory.push({ 
-                                    role: 'user', 
-                                    content: `${speaker.name}의 발언: ${data.response}` 
-                                });
-                                
-                                await sleep(3000); // 다음 사람이 말하기 전 잠깐 대기
-                            }
+                // [이름]: "대사" 패턴을 정규식으로 파싱
+                const lines = script.split('\n');
+                for (const line of lines) {
+                    // [이름]: "대사" 형식을 찾음
+                    const match = line.match(/\[(.*?)\]:\s*"(.*)"/);
+                    if (match) {
+                        const [_, name, content] = match;
+                        
+                        // 현재 방 참여자 리스트에서 해당 이름을 가진 객체를 찾음
+                        const speaker = roomInfo.participants.find(p => p.name === name);
+                        
+                        if (speaker) {
+                            await renderAI_TypingAndMessage(speaker, content);
+                            
+                            // 대화 기록 누적 (다음 개입 등을 위해)
+                            globalChatHistory.push({ role: 'assistant', content: `${name}: ${content}` });
+                            
+                            await sleep(2500); // 다음 대사까지 대기
                         }
-                    } catch(e) {
-                        console.error("AI 자동 대화 에러:", e);
                     }
                 }
-                cycleCount++;
+            } catch(e) {
+                console.error("AI 감독관 모드 대화 생성 에러:", e);
+                showToast("대화 생성 중 문제가 발생했습니다.", 'error');
             }
         }
 
