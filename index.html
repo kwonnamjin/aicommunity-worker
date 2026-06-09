@@ -630,8 +630,9 @@ let cycleCount = 0;
                                 speakerProfile: {
                                     name: speaker.name,
                                     job: speaker.role || '참여자',
-                                    personality: ['토론에 진심임', '주관이 뚜렷함'], 
-                                    stats: { villain_score: 30, wisdom: 70 }
+                                    // 하드코딩 제거: 서버에서 받은 고유 성격과 스탯을 그대로 넘김
+                                    personality: speaker.personality || ['평범함'], 
+                                    stats: speaker.stats || { villain_score: 50, wisdom: 50 }
                                 }
                             })
                         });
