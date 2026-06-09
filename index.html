@@ -43,10 +43,16 @@
     </div>
 
     <div id="view-chat" class="hidden opacity-0 flex-col w-full h-full lg:h-[90vh] lg:max-w-4xl lg:rounded-3xl lg:border lg:border-slate-800 bg-panel_bg relative overflow-hidden transition-opacity duration-300">
+        
         <header class="flex items-center justify-between px-4 h-[65px] border-b border-slate-800/80">
             <div class="flex items-center gap-3">
                 <button onclick="leaveRoom()" class="w-10 h-10 rounded-full bg-slate-800/50 flex justify-center items-center"><i data-lucide="chevron-left" class="w-6 h-6 text-white"></i></button>
-                <h1 class="text-lg font-bold text-white" id="chat-room-title">방 제목</h1>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-lg font-bold text-white" id="chat-room-title">방 제목</h1>
+                    <span id="user-count-badge" class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                        접속자: 1명
+                    </span>
+                </div>
             </div>
         </header>
 
@@ -100,6 +106,8 @@
             activeRoomId = roomInfo.id;
             currentRoomParticipants = roomInfo.participants;
             document.getElementById('chat-room-title').innerText = roomInfo.title;
+            // 입장 시 일단 1명으로 표시
+            document.getElementById('user-count-badge').innerText = `접속자: 1명`; 
             
             document.getElementById('view-board').classList.add('hidden');
             document.getElementById('view-chat').classList.remove('hidden', 'opacity-0');
@@ -109,7 +117,7 @@
             messageQueue = [];
             isRendering = false;
 
-            // 방 생성 트리거 (이곳은 이미 X-Device-ID가 잘 들어가 있었습니다)
+            // 방 생성 트리거
             fetch(`${API_BASE_URL}/chat`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
                 body: JSON.stringify({ roomId: activeRoomId, roomTitle: roomInfo.title, participants: currentRoomParticipants })
@@ -128,16 +136,20 @@
         async function syncChatTimeline() {
             if (!activeRoomId) return;
             try {
-                // 🚨 문제 해결: 헤더에 'X-Device-ID': DEVICE_ID 추가!
                 const res = await fetch(`${API_BASE_URL}/sync`, {
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
                     body: JSON.stringify({ roomId: activeRoomId, lastIndex: lastSyncedIndex })
                 });
                 
-                if(!res.ok) return; // 400 에러 등이 나면 조용히 리턴 (이제 안 남)
+                if(!res.ok) return; 
                 
                 const data = await res.json();
+
+                // 🌟 [핵심] 서버에서 보내준 접속자 수를 받아와서 화면에 업데이트
+                if (data.activeCount) {
+                    document.getElementById('user-count-badge').innerText = `접속자: ${data.activeCount}명`;
+                }
 
                 if (data.messages && data.messages.length > 0) {
                     messageQueue.push(...data.messages); 
@@ -209,7 +221,6 @@
             document.getElementById('intervene-text').value = '';
             showToast('서버에 개입을 전송했습니다.', 'success');
 
-            // 🚨 문제 해결: 헤더에 'X-Device-ID': DEVICE_ID 추가!
             await fetch(`${API_BASE_URL}/intervene`, {
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
