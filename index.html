@@ -68,7 +68,6 @@
         let activeRoomId = null;
         let currentRoomParticipants = [];
         
-        // 멀티플레이 동기화 변수들
         let syncInterval = null;
         let lastSyncedIndex = 0;
         let messageQueue = [];
@@ -82,17 +81,19 @@
         }
 
         async function fetchRooms() {
-            const res = await fetch(`${API_BASE_URL}/rooms`);
-            const data = await res.json();
-            const listContainer = document.getElementById('room-list');
-            listContainer.innerHTML = '';
-            data.rooms.forEach(room => {
-                const div = document.createElement('div');
-                div.className = 'bg-card_bg rounded-2xl p-4 border border-slate-700/50 cursor-pointer slide-up-card';
-                div.onclick = () => joinRoom(room);
-                div.innerHTML = `<h3 class="text-base font-bold text-white mb-2">${room.title}</h3><p class="text-xs text-slate-400">라이브 입장하기</p>`;
-                listContainer.appendChild(div);
-            });
+            try {
+                const res = await fetch(`${API_BASE_URL}/rooms`);
+                const data = await res.json();
+                const listContainer = document.getElementById('room-list');
+                listContainer.innerHTML = '';
+                data.rooms.forEach(room => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-card_bg rounded-2xl p-4 border border-slate-700/50 cursor-pointer slide-up-card';
+                    div.onclick = () => joinRoom(room);
+                    div.innerHTML = `<h3 class="text-base font-bold text-white mb-2">${room.title}</h3><p class="text-xs text-slate-400">라이브 입장하기</p>`;
+                    listContainer.appendChild(div);
+                });
+            } catch(e) { console.error("방 목록 로딩 실패", e); }
         }
 
         async function joinRoom(roomInfo) {
@@ -108,13 +109,12 @@
             messageQueue = [];
             isRendering = false;
 
-            // 방에 입장하면 일단 빈 서버에 '생성 시작해!' 라고 신호를 보냅니다.
+            // 방 생성 트리거 (이곳은 이미 X-Device-ID가 잘 들어가 있었습니다)
             fetch(`${API_BASE_URL}/chat`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
                 body: JSON.stringify({ roomId: activeRoomId, roomTitle: roomInfo.title, participants: currentRoomParticipants })
             });
 
-            // 1.5초마다 서버와 동기화 (멀티플레이 폴링)
             syncInterval = setInterval(syncChatTimeline, 1500);
         }
 
@@ -125,22 +125,25 @@
             document.getElementById('view-board').classList.remove('hidden', 'opacity-0');
         }
 
-        // 서버에서 현재 시간에 공개될 메시지만 가져오는 핵심 동기화 로직
         async function syncChatTimeline() {
             if (!activeRoomId) return;
             try {
+                // 🚨 문제 해결: 헤더에 'X-Device-ID': DEVICE_ID 추가!
                 const res = await fetch(`${API_BASE_URL}/sync`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
                     body: JSON.stringify({ roomId: activeRoomId, lastIndex: lastSyncedIndex })
                 });
+                
+                if(!res.ok) return; // 400 에러 등이 나면 조용히 리턴 (이제 안 남)
+                
                 const data = await res.json();
 
                 if (data.messages && data.messages.length > 0) {
-                    messageQueue.push(...data.messages); // 큐에 메시지 밀어넣기
-                    lastSyncedIndex = data.totalVisible; // 다음엔 이 이후부터 가져오라고 기록
+                    messageQueue.push(...data.messages); 
+                    lastSyncedIndex = data.totalVisible; 
                     processQueue();
                 } else if (data.isEmpty && data.isGenerating) {
-                    // 서버가 대본을 짜고 있을 때
                     if(!document.getElementById('sys-generating')) {
                         const pad = document.getElementById('bottom-padding');
                         pad.insertAdjacentHTML('beforebegin', `<div id="sys-generating" class="text-center text-xs text-slate-400 my-4 fade-in">서버가 실시간 대본을 조율 중입니다...</div>`);
@@ -149,7 +152,6 @@
             } catch(e) {}
         }
 
-        // 큐에 있는 메시지를 하나씩 꺼내서 렌더링
         async function processQueue() {
             if (isRendering || messageQueue.length === 0) return;
             isRendering = true;
@@ -163,19 +165,19 @@
             await renderAI_TypingAndMessage(speaker, msg.content, msg.isIntervention);
             
             isRendering = false;
-            processQueue(); // 큐에 남은게 있으면 연달아 처리
+            processQueue(); 
         }
 
         async function renderAI_TypingAndMessage(speaker, message, isIntervention = false) {
             const chatContainer = document.getElementById('chat-container');
             const pad = document.getElementById('bottom-padding');
             
-            // 스크롤 맨 아래 여부 확인 (스크롤 락)
+            // 자동 스크롤 락 기능
             const isScrolledToBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 50;
             
-            const typingId = 'typing-' + Math.random();
+            const typingId = 'typing-' + Math.random().toString(36).substr(2, 9);
             pad.insertAdjacentHTML('beforebegin', `
-                <div class="flex gap-3 mb-4" id="${typingId}">
+                <div class="flex gap-3 mb-4 fade-in" id="${typingId}">
                     <div class="w-8 h-8 rounded-full ${speaker.color} flex items-center justify-center text-[10px] text-white font-bold shrink-0">${speaker.name.charAt(0)}</div>
                     <div class="bg-message_other px-4 py-3 rounded-2xl rounded-tl-none"><div class="typing-indicator flex items-center h-4"><span></span><span></span><span></span></div></div>
                 </div>`);
@@ -191,7 +193,7 @@
             const msgHtml = `
                 <div class="flex gap-3 mb-4 message-enter ${isIntervention ? 'border-l-4 border-coin pl-2' : ''}">
                     <div class="w-8 h-8 rounded-full ${speaker.color} flex items-center justify-center text-[10px] text-white font-bold shrink-0">${speaker.name.charAt(0)}</div>
-                    <div class="bg-message_other px-4 py-3 rounded-2xl rounded-tl-none text-sm text-slate-200">
+                    <div class="bg-message_other px-4 py-3 rounded-2xl rounded-tl-none text-sm text-slate-200 leading-relaxed shadow-lg">
                         <span class="font-bold text-xs text-slate-400 block mb-0.5">${speaker.name}</span>${message}
                     </div>
                 </div>`;
@@ -207,12 +209,12 @@
             document.getElementById('intervene-text').value = '';
             showToast('서버에 개입을 전송했습니다.', 'success');
 
-            // 멀티플레이 개입 API 호출
+            // 🚨 문제 해결: 헤더에 'X-Device-ID': DEVICE_ID 추가!
             await fetch(`${API_BASE_URL}/intervene`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json', 'X-Device-ID': DEVICE_ID },
                 body: JSON.stringify({ roomId: activeRoomId, roomTitle: document.getElementById('chat-room-title').innerText, participants: currentRoomParticipants, text: text })
             });
-            // 서버에 개입을 날리면, 동기화(setInterval)가 알아서 새로운 미래의 메시지를 가져옵니다!
         }
 
         function showToast(msg, type='error') { 
