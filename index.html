@@ -14,19 +14,23 @@
         body { 
             font-family: 'Pretendard', sans-serif; 
             background-color: #020617; color: #F8FAFC; 
-            /* 🌟 모바일 화면 높이 가림 완벽 해결 (dvh 사용) */
             height: 100dvh; width: 100vw; 
             margin: 0; overflow: hidden; display: flex; justify-content: center;
         }
         
         #app-container { width: 100%; max-width: 500px; height: 100%; position: relative; display: flex; flex-direction: column; background: #0F172A; }
 
-        /* 🌟 스크롤바 예쁘게 살리기 */
-        .chat-scroll { overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
-        .chat-scroll::-webkit-scrollbar { width: 6px; }
-        .chat-scroll::-webkit-scrollbar-track { background: transparent; }
-        .chat-scroll::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 10px; }
-        .chat-scroll::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.5); }
+        /* 🌟 스크롤바는 숨기고 터치 스크롤은 부드럽게 작동하도록 수정 */
+        .chat-scroll { 
+            overflow-y: auto; 
+            overscroll-behavior-y: contain; 
+            -webkit-overflow-scrolling: touch; 
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+        .chat-scroll::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
 
         .fade-in { animation: fadeIn 0.3s ease-out forwards; }
         .message-enter { animation: messageSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -45,7 +49,7 @@
             <header class="flex items-center justify-between px-5 h-[65px] bg-panel_bg/90 border-b border-slate-800 flex-shrink-0">
                 <h1 class="text-xl font-bold text-white">🔥 실시간 AI 토론장</h1>
             </header>
-            <main class="chat-scroll flex-1 p-4 pb-10" id="room-list-container">
+            <main class="chat-scroll flex-1 min-h-0 p-4 pb-10" id="room-list-container">
                 <div class="flex flex-col gap-4" id="room-list"></div>
             </main>
         </div>
@@ -61,7 +65,7 @@
                 </div>
             </header>
 
-            <main class="chat-scroll flex-1 px-4 pt-6 pb-[90px] flex flex-col gap-2 relative" id="chat-container">
+            <main class="chat-scroll flex-1 min-h-0 px-4 pt-6 pb-[90px] flex flex-col gap-2 relative" id="chat-container">
                 <div id="bottom-padding"></div>
             </main>
 
@@ -92,7 +96,7 @@
         let lastSyncedIndex = 0;
         let messageQueue = [];
         let isRendering = false;
-        let isFirstSync = true; // 🌟 늦은 참가자 판별 변수
+        let isFirstSync = true; 
 
         document.addEventListener('DOMContentLoaded', async () => { try { lucide.createIcons(); } catch(e){} fetchRooms(); });
 
@@ -168,24 +172,21 @@
                 if (data.activeCount) document.getElementById('user-count-badge').innerText = `접속자: ${data.activeCount}명`;
 
                 if (data.messages && data.messages.length > 0) {
-                    // 🌟 [핵심] 늦게 방에 들어왔을 때, 이미 지나간 과거 대화는 타이핑 없이 1초만에 화면에 즉시 띄움!
                     if (isFirstSync) {
                         renderInstantMessages(data.messages);
                         lastSyncedIndex = data.totalVisible;
                         isFirstSync = false;
                     } else {
-                        // 이후에 올라오는 새 글만 하나씩 타이핑
                         messageQueue.push(...data.messages); 
                         lastSyncedIndex = data.totalVisible; 
                         processQueue();
                     }
                 } else if (data.isEmpty) {
-                    isFirstSync = false; // 방이 아예 처음 만들어진 상태면 바로 라이브 대기 모드로 전환
+                    isFirstSync = false; 
                 }
             } catch(e) {}
         }
 
-        // 과거 대화를 한 번에 화면에 뿌리는 함수 (지연 시간 없음)
         function renderInstantMessages(messages) {
             const pad = document.getElementById('bottom-padding');
             let htmlBlock = '';
@@ -197,7 +198,8 @@
             pad.insertAdjacentHTML('beforebegin', htmlBlock);
             
             const chatContainer = document.getElementById('chat-container');
-            chatContainer.scrollTo({ top: chatContainer.scrollHeight });
+            // 스크롤이 무조건 제일 아래로 오도록 보장
+            setTimeout(() => chatContainer.scrollTo({ top: chatContainer.scrollHeight }), 100);
         }
 
         async function processQueue() {
@@ -240,9 +242,9 @@
             const chatContainer = document.getElementById('chat-container');
             const pad = document.getElementById('bottom-padding');
             
-            // 🌟 [스크롤 락 핵심 완벽 방어] 오차 범위를 100px로 넉넉히 줘서 모바일에서 사용자가 조금이라도 위를 보면 고정되게 함
+            // 🌟 오차 범위 내에 있으면 제일 하단을 보고 있는 것으로 간주 (터치 스크롤 최적화)
             const scrollDiff = Math.abs(chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight);
-            const isScrolledToBottom = scrollDiff <= 100;
+            const isScrolledToBottom = scrollDiff <= 150;
             
             if (!isMe) {
                 const typingId = 'typing-' + Math.random().toString(36).substr(2, 9);
@@ -252,7 +254,10 @@
                         <div class="bg-message_other px-4 py-3 rounded-2xl rounded-tl-sm shadow-md"><div class="typing-indicator flex items-center h-4"><span></span><span></span><span></span></div></div>
                     </div>`);
                 
-                if (isScrolledToBottom) chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+                if (isScrolledToBottom) {
+                    chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+                }
+                
                 await new Promise(resolve => setTimeout(resolve, Math.max(800, message.length * 30)));
                 
                 const typingEl = document.getElementById(typingId);
@@ -261,7 +266,7 @@
 
             pad.insertAdjacentHTML('beforebegin', getMessageHTML(speaker, message, isMe));
             
-            // 스크롤이 바닥일 때만 내려감 (과거 내역 읽고 있으면 안 내려감)
+            // 새 메시지가 떴을 때 사용자가 과거 글을 보고 있으면 화면을 고정시키고, 맨 아래를 보고 있으면 따라 내려감
             if (isScrolledToBottom) {
                 setTimeout(() => chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' }), 50);
             }
@@ -273,9 +278,9 @@
             if(!text) return;
             
             input.value = '';
-            input.blur(); // 모바일에서 전송 시 키보드 내리기
+            input.blur(); // 모바일 전송 시 키보드 내림 처리
             
-            // 전송 즉시 내 화면에 표시 (기다리지 않음)
+            // 내가 친 글이 서버를 거치지 않고 내 화면에 바로 뜨도록 처리 (체감 속도 0초)
             renderInstantMessages([{ name: myPersona.name, content: text, isHuman: true }]);
 
             await fetch(`${API_BASE_URL}/user-chat`, {
